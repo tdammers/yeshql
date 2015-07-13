@@ -1,0 +1,4 @@
+.cabal-sandbox
+cabal.sandbox.config
+.*.sw[po]
+/dist

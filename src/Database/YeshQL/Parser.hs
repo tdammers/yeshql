@@ -22,14 +22,15 @@ data ParsedQuery =
         , pqParamNames :: [String]
         , pqParamTypes :: Map String String
         , pqReturnType :: Either String [String]
+        , pqDocComment :: String
         }
         deriving (Show)
 
 pqTypeFor :: ParsedQuery -> String -> Maybe String
 pqTypeFor q pname = Map.lookup pname (pqParamTypes q)
 
-parsedQuery :: String -> String -> [(String, String)] -> [(String, String)] -> Either String [String] -> ParsedQuery
-parsedQuery queryName queryString paramsRaw paramsExtra returnType =
+parsedQuery :: String -> String -> [(String, String)] -> [(String, String)] -> Either String [String] -> String -> ParsedQuery
+parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment =
     ParsedQuery
         queryName
         queryString
@@ -37,6 +38,7 @@ parsedQuery queryName queryString paramsRaw paramsExtra returnType =
         (extractParamNames (paramsRaw ++ paramsExtra))
         (extractParamTypeMap (paramsRaw ++ paramsExtra))
         returnType
+        docComment
 
 extractParamNames :: [(String, String)] -> [String]
 extractParamNames = nub . map fst
@@ -72,6 +74,13 @@ extractParsedParams = catMaybes . map extractItem
         extractItem (ParsedParam n t) = Just (n, t)
         extractItem _ = Nothing
 
+extractDocComment :: [ParsedItem] -> String
+extractDocComment = unlines . catMaybes . map extractItem
+    where
+        extractItem :: ParsedItem -> Maybe String
+        extractItem (ParsedComment str) = Just str
+        extractItem _ = Nothing
+
 parseQuery :: String -> Either ParseError ParsedQuery
 parseQuery src = runParser mainP () "query" src
 
@@ -87,10 +96,11 @@ mainP = do
                 (extractParsedParams items)
                 (extractParsedParams extraItems)
                 retType
+                (extractDocComment (extraItems ++ items))
 
 nameDeclP :: Parsec String () (String, Either String [String])
 nameDeclP = do
-    manyTill anyChar (try (string "--" >> whitespaceP >> string "name" >> whitespaceP >> char ':'))
+    manyTill anyChar (try (whitespaceP >> string "--" >> whitespaceP >> string "name" >> whitespaceP >> char ':'))
     whitespaceP
     qn <- identifierP
     whitespaceP
@@ -124,7 +134,7 @@ itemP = paramP <|> quotedP <|> literalP
 
 paramDeclP :: Parsec String () ParsedItem
 paramDeclP = do
-    try $ (string "--" >> whitespaceP >> char ':')
+    try $ (whitespaceP >> string "--" >> whitespaceP >> char ':')
     name <- identifierP
     whitespaceP
     t <- option "" $ do
@@ -138,7 +148,7 @@ paramDeclP = do
 
 commentP :: Parsec String () ParsedItem
 commentP = do
-    string "--"
+    try (whitespaceP >> string "--")
     whitespaceP
     ParsedComment <$> manyTill anyChar newlineP
 

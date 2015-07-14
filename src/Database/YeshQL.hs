@@ -1,7 +1,7 @@
 {-#LANGUAGE TemplateHaskell #-}
 module Database.YeshQL
 ( yesh
-, mkQuery
+, mkQueryDecs
 , parseQuery
 )
 where
@@ -12,7 +12,7 @@ import Data.List (isPrefixOf, foldl')
 import Data.Maybe (catMaybes, fromMaybe)
 import Database.HDBC (fromSql, toSql, run, ConnWrapper, IConnection, quickQuery')
 import qualified Text.Parsec as P
-import Data.Char (chr, ord)
+import Data.Char (chr, ord, toUpper)
 import Control.Applicative ( (<$>), (<*>) )
 
 import Database.YeshQL.Parser
@@ -24,10 +24,20 @@ nthIdent i
                     in nthIdent j ++ nthIdent k
 
 yesh :: QuasiQuoter
-yesh = QuasiQuoter { quoteDec = mkQuery }
+yesh = QuasiQuoter
+        { quoteDec = mkQueryDecs
+        }
 
-mkQuery :: String -> Q [Dec]
-mkQuery qstr = do
+queryName :: String -> String -> Name
+queryName prefix basename =
+    mkName $ prefix ++ ucfirst basename
+
+ucfirst :: String -> String
+ucfirst "" = ""
+ucfirst (x:xs) = toUpper x:xs
+
+mkQueryDecs :: String -> Q [Dec]
+mkQueryDecs qstr = do
     let parseResult = parseQuery qstr
     query <- case parseResult of
                 Left err -> fail . show $ err
@@ -64,11 +74,25 @@ mkQuery qstr = do
                 `appE` (varE . mkName $ "conn")
                 `appE` (litE . stringL . pqQueryString $ query)
                 `appE` (listE [ appE (varE 'toSql) (varE . mkName $ n) | (n, t) <- (pqParamsRaw query) ])
-    s <- sigD (mkName funName) [t| IConnection conn => conn -> $(queryType) |]
-    f <- funD (mkName funName)
-            [ clause
-                (varP (mkName "conn"):map varP argNames)
-                (normalB body)
-                []
-            ]
-    return [s, f]
+    sRun <- sigD (queryName "run" funName) [t| IConnection conn => conn -> $(queryType) |]
+    fRun <- funD (queryName "run" funName)
+                [ clause
+                    (varP (mkName "conn"):map varP argNames)
+                    (normalB body)
+                    []
+                ]
+    sDescribe <- sigD (queryName "describe" funName) [t|String|]
+    fDescribe <- funD (queryName "describe" funName)
+                    [ clause
+                        []
+                        (normalB . litE . stringL . pqQueryString $ query)
+                        []
+                    ]
+    sDocument <- sigD (queryName "doc" funName) [t|String|]
+    fDocument <- funD (queryName "doc" funName)
+                    [ clause
+                        []
+                        (normalB . litE . stringL . pqDocComment $ query)
+                        []
+                    ]
+    return [sRun, fRun, sDescribe, fDescribe, sDocument, fDocument]

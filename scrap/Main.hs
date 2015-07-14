@@ -19,4 +19,4 @@ main = do
     putStrLn $ docTestQ
     putStrLn $ describeTestQ
     withPostgreSQL dsn $ \conn -> do
-        runTestQ conn 3 >>= print
+        testQ conn 3 >>= print

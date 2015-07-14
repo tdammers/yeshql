@@ -86,7 +86,7 @@ parseQuery src = runParser mainP () "query" src
 
 mainP :: Parsec String () ParsedQuery
 mainP = do
-    (qn, retType) <- nameDeclP
+    (qn, retType) <- option ("query", Left "Integer") nameDeclP
     extraItems <- many (try paramDeclP <|> try commentP)
     items <- many (try commentP <|> try itemP)
     eof
@@ -178,5 +178,5 @@ whitespaceP = do
 
 newlineP :: Parsec String () ()
 newlineP = do
-    char '\n'
+    char '\n' <|> char ';'
     return ()

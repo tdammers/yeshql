@@ -17,7 +17,7 @@ cabal-version: >=1.10
 
 library
     exposed-modules: Database.YeshQL
-    -- other-modules:
+    other-modules: Database.YeshQL.Parser
     -- other-extensions:
     build-depends: base >=4.6 && <5.0
                  , template-haskell

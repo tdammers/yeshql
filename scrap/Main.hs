@@ -15,7 +15,9 @@ SELECT id, name FROM items WHERE id = :id OR id = :id + 1
 queryInfo =
     parseQuery . unlines $
         [ "-- name:testQ -> (Integer, String)"
+        , "-- This is just a comment"
         , "-- :id:Integer"
+        , "-- This is also just a comment"
         , "SELECT id, name FROM items WHERE id = :id OR id = :id + 1"
         ]
 

@@ -50,21 +50,28 @@ withParsedQuery a qstr = do
                 Right x -> return x
     a query
 
+pgQueryType :: ParsedQuery -> TypeQ
+pgQueryType query = foldr (\a b -> [t| $a -> $b |]) [t| IO $(returnType) |] $ argTypes
+    where
+        argTypes = map (mkType . fromMaybe AutoType . pqTypeFor query) (pqParamNames query)
+        returnType = case pqReturnType query of
+                        Left tn -> mkType tn
+                        Right [] -> tupleT 0
+                        Right (x:[]) -> appT listT $ mkType x
+                        Right xs -> appT listT $ foldl' appT (tupleT $ length xs) (map mkType xs)
+
+mkType :: ParsedType -> Q Type
+mkType (MaybeType n) = [t|Maybe $(conT . mkName $ n)|]
+mkType (PlainType n) = conT . mkName $ n
+mkType AutoType = [t|String|]
+
 mkQueryDecs :: ParsedQuery -> Q [Dec]
 mkQueryDecs query = do
     let argNamesStr = pqParamNames query
-        argTypesStr = map (fromMaybe "String" . pqTypeFor query) $ argNamesStr
         argNames = map mkName argNamesStr
-        argTypes = map mkName argTypesStr
         patterns = (varP . mkName $ "conn") : map varP argNames
         funName = pqQueryName query
-        returnType = case pqReturnType query of
-                        Left tn -> conT . mkName $ tn
-                        Right [] -> tupleT 0
-                        Right (x:[]) -> conT . mkName $ x
-                        Right xs -> appT listT $ foldl' appT (tupleT $ length xs) (map (conT . mkName) xs)
-        queryType :: TypeQ
-        queryType = foldr (\a b -> [t| $a -> $b |]) [t| IO $(returnType) |] $ map conT argTypes
+        queryType = pgQueryType query
     sRun <- sigD (mkName . lcfirst $ funName) [t| IConnection conn => conn -> $(queryType) |]
     fRun <- funD (mkName . lcfirst $ funName)
                 [ clause
@@ -91,18 +98,10 @@ mkQueryDecs query = do
 mkQueryExp :: ParsedQuery -> Q Exp
 mkQueryExp query = do
     let argNamesStr = pqParamNames query
-        argTypesStr = map (fromMaybe "String" . pqTypeFor query) $ argNamesStr
         argNames = map mkName argNamesStr
-        argTypes = map mkName argTypesStr
         patterns = (varP . mkName $ "conn") : map varP argNames
         funName = pqQueryName query
-        returnType = case pqReturnType query of
-                        Left tn -> conT . mkName $ tn
-                        Right [] -> tupleT 0
-                        Right (x:[]) -> appT listT . conT . mkName $ x
-                        Right xs -> appT listT $ foldl' appT (tupleT $ length xs) (map (conT . mkName) xs)
-        queryType :: TypeQ
-        queryType = foldr (\a b -> [t| $a -> $b |]) [t| IO $(returnType) |] $ map conT argTypes
+        queryType = pgQueryType query
     sigE
         (lamE (varP (mkName "conn"):map varP argNames) (mkQueryBody query))
         [t| IConnection conn => conn -> $(queryType) |]
@@ -110,9 +109,11 @@ mkQueryExp query = do
 mkQueryBody :: ParsedQuery -> Q Exp
 mkQueryBody query = do
     let argNamesStr = pqParamNames query
-        argTypesStr = map (fromMaybe "String" . pqTypeFor query) $ argNamesStr
         argNames = map mkName argNamesStr
-        argTypes = map mkName argTypesStr
+        patterns = (varP . mkName $ "conn") : map varP argNames
+        funName = pqQueryName query
+        queryType = pgQueryType query
+
         convert :: ExpQ
         convert = case pqReturnType query of
                     Left tn -> varE 'fromInteger

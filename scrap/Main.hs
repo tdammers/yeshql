@@ -6,7 +6,7 @@ import Database.YeshQL
 import Database.HDBC
 import Database.HDBC.PostgreSQL
 
-[yesh| -- name:testQ -> (Integer, String)
+[yesh| -- name:testQ -> (Int, String)
        -- :id:Integer
        SELECT id, name FROM items WHERE id = :id OR id = :id + 1
        |]

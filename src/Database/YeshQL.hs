@@ -1,6 +1,6 @@
 {-#LANGUAGE TemplateHaskell #-}
 module Database.YeshQL
-( yesh
+( yesh, yesh1
 , mkQueryDecs
 , mkQueryExp
 , parseQuery
@@ -24,10 +24,16 @@ nthIdent i
     | otherwise = let (j, k) = divMod i 26
                     in nthIdent j ++ nthIdent k
 
-yesh :: QuasiQuoter
-yesh = QuasiQuoter
+yesh1 :: QuasiQuoter
+yesh1 = QuasiQuoter
         { quoteDec = withParsedQuery mkQueryDecs
         , quoteExp = withParsedQuery mkQueryExp
+        }
+
+yesh :: QuasiQuoter
+yesh = QuasiQuoter
+        { quoteDec = withParsedQueries mkQueryDecsMulti
+        , quoteExp = withParsedQueries mkQueryExpMulti
         }
 
 queryName :: String -> String -> Name
@@ -43,12 +49,19 @@ lcfirst "" = ""
 lcfirst (x:xs) = toLower x:xs
 
 withParsedQuery :: (ParsedQuery -> Q a) -> String -> Q a
-withParsedQuery a qstr = do
-    let parseResult = parseQuery qstr
-    query <- case parseResult of
-                Left err -> fail . show $ err
+withParsedQuery = withParsed parseQuery
+
+withParsedQueries :: ([ParsedQuery] -> Q a) -> String -> Q a
+withParsedQueries = withParsed parseQueries
+
+withParsed :: (Monad m, Show e) => (s -> Either e a) -> (a -> m b) -> s -> m b
+withParsed p a src = do
+    let parseResult = p src
+    arg <- case parseResult of
+                Left e -> fail . show $ e
                 Right x -> return x
-    a query
+    a arg
+
 
 pgQueryType :: ParsedQuery -> TypeQ
 pgQueryType query = foldr (\a b -> [t| $a -> $b |]) [t| IO $(returnType) |] $ argTypes
@@ -64,6 +77,13 @@ mkType :: ParsedType -> Q Type
 mkType (MaybeType n) = [t|Maybe $(conT . mkName $ n)|]
 mkType (PlainType n) = conT . mkName $ n
 mkType AutoType = [t|String|]
+
+mkQueryDecsMulti :: [ParsedQuery] -> Q [Dec]
+mkQueryDecsMulti queries = concat <$> mapM mkQueryDecs queries
+
+mkQueryExpMulti :: [ParsedQuery] -> Q Exp
+mkQueryExpMulti queries =
+    foldl1 (\a b -> VarE '(>>) `AppE` a `AppE` b) <$> mapM mkQueryExp queries
 
 mkQueryDecs :: ParsedQuery -> Q [Dec]
 mkQueryDecs query = do

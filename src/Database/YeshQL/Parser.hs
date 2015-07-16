@@ -1,5 +1,6 @@
 module Database.YeshQL.Parser
 ( parseQuery
+, parseQueries
 , ParsedQuery (..)
 , ParsedType (..)
 , pqTypeFor
@@ -88,12 +89,25 @@ extractDocComment = unlines . catMaybes . map extractItem
 parseQuery :: String -> Either ParseError ParsedQuery
 parseQuery src = runParser mainP () "query" src
 
+parseQueries :: String -> Either ParseError [ParsedQuery]
+parseQueries src = runParser multiP () "queries" src
+
 mainP :: Parsec String () ParsedQuery
 mainP = do
-    (qn, retType) <- option ("query", Left (PlainType "Integer")) nameDeclP
+    q <- queryP
+    eof
+    return q
+
+multiP :: Parsec String () [ParsedQuery]
+multiP = do
+    sepBy queryP (try (spaces >> char ';' >> notFollowedBy (char ';') >> spaces))
+
+queryP :: Parsec String () ParsedQuery
+queryP = do
+    spaces
+    (qn, retType) <- option ("query", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
     extraItems <- many (try paramDeclP <|> try commentP)
     items <- many (try commentP <|> try itemP)
-    eof
     return $ parsedQuery
                 qn
                 (extractParsedQuery items)
@@ -104,14 +118,22 @@ mainP = do
 
 nameDeclP :: Parsec String () (String, Either ParsedType [ParsedType])
 nameDeclP = do
-    manyTill anyChar (try (whitespaceP >> string "--" >> whitespaceP >> string "name" >> whitespaceP >> char ':'))
+    try (whitespaceP >> string "--" >> whitespaceP >> string "name" >> whitespaceP >> char ':')
     whitespaceP
     qn <- identifierP
     whitespaceP
-    retType <- option (Left (PlainType "Integer")) (try (string "->") >> whitespaceP >> returnTypeP)
+    retType <- option (Left (PlainType "Integer")) (try (string "::" >> whitespaceP >> returnTypeP))
     whitespaceP
     newlineP
     return (qn, retType)
+
+namelessDeclP :: Parsec String () (String, Either ParsedType [ParsedType])
+namelessDeclP = do
+    try (whitespaceP >> string "--" >> whitespaceP >> string "::" >> whitespaceP)
+    retType <- returnTypeP
+    whitespaceP
+    newlineP
+    return ("query", retType)
 
 identifierP :: Parsec String () String
 identifierP =
@@ -149,7 +171,7 @@ paramDeclP = do
     name <- identifierP
     whitespaceP
     t <- option AutoType $ do
-            char ':'
+            string "::"
             whitespaceP
             t <- typeP
             whitespaceP
@@ -161,14 +183,14 @@ commentP :: Parsec String () ParsedItem
 commentP = do
     try (whitespaceP >> string "--")
     whitespaceP
-    ParsedComment <$> manyTill anyChar newlineP
+    ParsedComment <$> manyTill (noneOf " \t\n;") (newlineP <|> ignore (char ';'))
 
 paramP :: Parsec String () ParsedItem
 paramP = do
     char ':'
     pname <- identifierP
     ptype <- option AutoType $ do
-                char ':'
+                string "::"
                 typeP
     return $ ParsedParam pname ptype
 
@@ -180,14 +202,17 @@ quotedP = do
     return . ParsedLiteral . ('\'':) . (++ "'") $ contents
 
 literalP :: Parsec String () ParsedItem
-literalP = ParsedLiteral <$> many1 (noneOf ":'")
+literalP = ParsedLiteral <$> many1 (noneOf ":';")
 
 whitespaceP :: Parsec String () ()
 whitespaceP = do
     many (oneOf " \t\r")
     return ()
 
+ignore :: Parsec s u a -> Parsec s u ()
+ignore x = x >> return ()
+
 newlineP :: Parsec String () ()
 newlineP = do
-    char '\n' <|> char ';'
+    (ignore $ char '\n') <|> (ignore . try . string $ ";;")
     return ()

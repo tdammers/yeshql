@@ -16,6 +16,11 @@ import Database.HDBC.PostgreSQL
     -- name:getUser :: (Integer, String)
     -- :id :: Integer
     SELECT id, name FROM users WHERE id = :id;
+    -- name:getUserEx :: (Integer, String)
+    -- :id :: Integer
+    -- :filename :: String
+    -- :unused :: Double
+    SELECT id, name FROM users WHERE name = :filename OR id = :id;
     |]
 
 dsn :: String
@@ -25,7 +30,7 @@ main :: IO ()
 main = do
     withPostgreSQL dsn . flip withTransaction $ \conn -> do
         uid:_ <- insertUser "niels" conn
-        getUser uid conn >>= print
+        getUserEx uid "niels" 0.5 conn >>= print
         getUser 1 conn >>= print
         deleteUser uid conn
         return ()

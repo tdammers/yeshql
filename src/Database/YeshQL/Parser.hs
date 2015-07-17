@@ -40,13 +40,14 @@ parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment =
         queryName
         queryString
         paramsRaw
-        (extractParamNames (paramsRaw ++ paramsExtra))
-        (extractParamTypeMap (paramsRaw ++ paramsExtra))
+        (extractParamNames (paramsExtra ++ paramsRaw))
+        (extractParamTypeMap (paramsExtra ++ paramsRaw))
         returnType
         docComment
 
 extractParamNames :: [(String, ParsedType)] -> [String]
-extractParamNames = nub . map fst
+extractParamNames xs = 
+    nub . map fst $ xs
 
 extractParamTypeMap :: [(String, ParsedType)] -> Map String ParsedType
 extractParamTypeMap = foldl' applyItem Map.empty
@@ -106,7 +107,7 @@ queryP :: Parsec String () ParsedQuery
 queryP = do
     spaces
     (qn, retType) <- option ("query", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
-    extraItems <- many (try paramDeclP <|> try commentP)
+    extraItems <- many (paramDeclP <|> commentP)
     items <- many (try commentP <|> try itemP)
     return $ parsedQuery
                 qn

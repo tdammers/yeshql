@@ -24,8 +24,8 @@ dsn = "host=localhost dbname=scrap user=scrap password=scrap"
 main :: IO ()
 main = do
     withPostgreSQL dsn . flip withTransaction $ \conn -> do
-        uid:_ <- insertUser conn "niels"
-        getUser conn uid >>= print
-        getUser conn 1 >>= print
-        deleteUser conn uid
+        uid:_ <- insertUser "niels" conn
+        getUser uid conn >>= print
+        getUser 1 conn >>= print
+        deleteUser uid conn
         return ()

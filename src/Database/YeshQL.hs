@@ -64,7 +64,7 @@ withParsed p a src = do
 
 
 pgQueryType :: ParsedQuery -> TypeQ
-pgQueryType query = foldr (\a b -> [t| $a -> $b |]) [t| IO $(returnType) |] $ argTypes
+pgQueryType query = [t|IConnection conn => $(foldr (\a b -> [t| $a -> $b |]) [t| conn -> IO $(returnType) |] $ argTypes) |]
     where
         argTypes = map (mkType . fromMaybe AutoType . pqTypeFor query) (pqParamNames query)
         returnType = case pqReturnType query of
@@ -85,17 +85,22 @@ mkQueryExpMulti :: [ParsedQuery] -> Q Exp
 mkQueryExpMulti queries =
     foldl1 (\a b -> VarE '(>>) `AppE` a `AppE` b) <$> mapM mkQueryExp queries
 
-mkQueryDecs :: ParsedQuery -> Q [Dec]
-mkQueryDecs query = do
-    let argNamesStr = pqParamNames query
+pqNames :: ParsedQuery -> ([Name], [PatQ], String, TypeQ)
+pqNames query =
+    let argNamesStr = pqParamNames query ++ ["conn"]
         argNames = map mkName argNamesStr
-        patterns = (varP . mkName $ "conn") : map varP argNames
+        patterns = map varP argNames
         funName = pqQueryName query
         queryType = pgQueryType query
-    sRun <- sigD (mkName . lcfirst $ funName) [t| IConnection conn => conn -> $(queryType) |]
+    in (argNames, patterns, funName, queryType)
+
+mkQueryDecs :: ParsedQuery -> Q [Dec]
+mkQueryDecs query = do
+    let (argNames, patterns, funName, queryType) = pqNames query
+    sRun <- sigD (mkName . lcfirst $ funName) queryType
     fRun <- funD (mkName . lcfirst $ funName)
                 [ clause
-                    (varP (mkName "conn"):map varP argNames)
+                    (map varP argNames)
                     (normalB . mkQueryBody $ query)
                     []
                 ]
@@ -117,22 +122,14 @@ mkQueryDecs query = do
 
 mkQueryExp :: ParsedQuery -> Q Exp
 mkQueryExp query = do
-    let argNamesStr = pqParamNames query
-        argNames = map mkName argNamesStr
-        patterns = (varP . mkName $ "conn") : map varP argNames
-        funName = pqQueryName query
-        queryType = pgQueryType query
+    let (argNames, patterns, funName, queryType) = pqNames query
     sigE
-        (lamE (varP (mkName "conn"):map varP argNames) (mkQueryBody query))
-        [t| IConnection conn => conn -> $(queryType) |]
+        (lamE patterns (mkQueryBody query))
+        queryType
 
 mkQueryBody :: ParsedQuery -> Q Exp
 mkQueryBody query = do
-    let argNamesStr = pqParamNames query
-        argNames = map mkName argNamesStr
-        patterns = (varP . mkName $ "conn") : map varP argNames
-        funName = pqQueryName query
-        queryType = pgQueryType query
+    let (argNames, patterns, funName, queryType) = pqNames query
 
         convert :: ExpQ
         convert = case pqReturnType query of
@@ -147,9 +144,9 @@ mkQueryBody query = do
                                     -- (fromSql a, fromSql b, fromSql c, ...)
                                     (tupE $ (map (\n -> appE (varE 'fromSql) (varE . mkName $ n)) varNames)))|]
         queryFunc = case pqReturnType query of
-                        Left _ -> [| \conn qstr params -> $convert <$> run conn qstr params |]
-                        Right _ -> [| \conn qstr params -> $convert <$> quickQuery' conn qstr params |]
+                        Left _ -> [| \qstr params conn -> $convert <$> run conn qstr params |]
+                        Right _ -> [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
     queryFunc
-        `appE` (varE . mkName $ "conn")
         `appE` (litE . stringL . pqQueryString $ query)
         `appE` (listE [ appE (varE 'toSql) (varE . mkName $ n) | (n, t) <- (pqParamsRaw query) ])
+        `appE` (varE . mkName $ "conn")

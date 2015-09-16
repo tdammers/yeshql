@@ -101,7 +101,15 @@ mainP = do
 
 multiP :: Parsec String () [ParsedQuery]
 multiP = do
-    sepBy queryP (try (spaces >> char ';' >> notFollowedBy (char ';') >> spaces))
+    fmap catMaybes $
+        sepBy queryMayP sepP
+    where
+        sepP :: Parsec String () ()
+        sepP = try (spaces >> char ';' >> notFollowedBy (char ';') >> spaces)
+        queryMayP :: Parsec String () (Maybe ParsedQuery)
+        queryMayP = do
+            spaces
+            fmap Just queryP <|> (eof >> return Nothing) <?> "SQL query"
 
 queryP :: Parsec String () ParsedQuery
 queryP = do

@@ -1,4 +1,21 @@
 {-#LANGUAGE TemplateHaskell #-}
+{-|
+Module: Database.YeshQL
+Description: Turn SQL queries into type-safe functions.
+Copyright: (c) 2015 Tobias Dammers
+License: MIT
+
+Unlike existing libraries such as Esqueleto or Persistent, YeshQL does not try
+to provide full SQL abstraction with added type safety; instead, it gives you
+some simple tools to write the SQL queries yourself and bind them to (typed)
+functions.
+
+The main workhorses are 'yesh1' (to define one query) and 'yesh' (to define
+multiple queries).
+
+Because SQL itself does not *quite* provide enough information to generate a
+fully typed Haskell function, we extend SQL syntax a bit.
+ -}
 module Database.YeshQL
 ( yesh, yesh1
 , mkQueryDecs
@@ -24,16 +41,22 @@ nthIdent i
     | otherwise = let (j, k) = divMod i 26
                     in nthIdent j ++ nthIdent k
 
+-- | Generate a top-level declaration or an expression for a single SQL query.
 yesh1 :: QuasiQuoter
 yesh1 = QuasiQuoter
         { quoteDec = withParsedQuery mkQueryDecs
         , quoteExp = withParsedQuery mkQueryExp
+        , quoteType = error "yesh1 does not generate types"
+        , quotePat = error "yesh1 does not generate patterns"
         }
 
+-- | Generate top-level declarations or expressions for several SQL queries.
 yesh :: QuasiQuoter
 yesh = QuasiQuoter
         { quoteDec = withParsedQueries mkQueryDecsMulti
         , quoteExp = withParsedQueries mkQueryExpMulti
+        , quoteType = error "yesh does not generate types"
+        , quotePat = error "yesh does not generate patterns"
         }
 
 queryName :: String -> String -> Name
@@ -64,7 +87,13 @@ withParsed p a src = do
 
 
 pgQueryType :: ParsedQuery -> TypeQ
-pgQueryType query = [t|IConnection conn => $(foldr (\a b -> [t| $a -> $b |]) [t| conn -> IO $(returnType) |] $ argTypes) |]
+pgQueryType query =
+    [t|IConnection conn =>
+        $(foldr
+            (\a b -> [t| $a -> $b |])
+            [t| conn -> IO $(returnType) |]
+          $ argTypes)
+      |]
     where
         argTypes = map (mkType . fromMaybe AutoType . pqTypeFor query) (pqParamNames query)
         returnType = case pqReturnType query of

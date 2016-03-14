@@ -3,6 +3,8 @@
 Module: Database.YeshQL
 Description: Turn SQL queries into type-safe functions.
 Copyright: (c) 2015 Tobias Dammers
+Maintainer: Tobias Dammers <tdammers@gmail.com>
+Stability: experimental
 License: MIT
 
 Unlike existing libraries such as Esqueleto or Persistent, YeshQL does not try
@@ -10,11 +12,114 @@ to provide full SQL abstraction with added type safety; instead, it gives you
 some simple tools to write the SQL queries yourself and bind them to (typed)
 functions.
 
-The main workhorses are 'yesh1' (to define one query) and 'yesh' (to define
-multiple queries).
+= Usage
+
+The main workhorses are the 'yesh1' (to define one query) and 'yesh' (to define
+multiple queries) quasi-quoters.
+
+Both 'yesh' and 'yesh1' can produce either declarations or expressions,
+depending on the context in which they are used.
+
+== Creating Declarations
+
+When used at the top level, or inside a @where@ block, the 'yesh' and 'yesh1'
+quasi-quoters will declare one or more functions, according to the query names
+given in the query definition. Example:
+
+@
+[yesh1|
+    -- name:insertUser :: (Integer)
+    -- :name :: String
+    INSERT INTO users (name) VALUES (:name) RETURNING id |]
+@
+
+...will create a top-level function of type:
+
+@
+    insertUser :: IConnection conn => conn -> String -> IO [Integer]
+@
+
+= Syntax
 
 Because SQL itself does not *quite* provide enough information to generate a
 fully typed Haskell function, we extend SQL syntax a bit.
+
+Here's what a typical YeshQL definition looks like:
+
+@
+[yesh|
+    -- name:insertUser :: (Integer)
+    -- :name :: String
+    INSERT INTO users (name) VALUES (:name) RETURNING id;
+    -- name:deleteUser :: Integer
+    -- :id :: Integer
+    DELETE FROM users WHERE id = :id;
+    -- name:getUser :: (Integer, String)
+    -- :id :: Integer
+    SELECT id, name FROM users WHERE id = :id;
+    -- name:getUserEx :: (Integer, String)
+    -- :id :: Integer
+    -- :filename :: String
+    SELECT id, name FROM users WHERE name = :filename OR id = :id;
+    |]
+@
+
+On top of standard SQL syntax, YeshQL query definitions are preceded by some
+extra information in order to generate well-typed HDBC queries. All that
+information is written in SQL line comments (@-- ...@), such that a valid
+YeshQL definition is also valid SQL by itself (with the exception of
+parameters, which follow the pattern @:paramName@).
+
+Let's break it down:
+
+@
+    -- name:insertUser :: (Integer)
+@
+
+This line tells YeshQL to generate an object called @insertUser@, which should
+be a function of type @IConnection conn => conn -> {...} -> IO (Integer)@
+(where the @{...}@ part depends on query parameters, see below).
+
+The declared return type can be one of the following:
+
+- '()'; the generated function will ignore any and all results from the query
+  and always return '()'.
+- An integer scalar, e.g. @Integer@ or @Int@; the generated function will
+  return a row count from @INSERT@ / @UPDATE@ / ... statements, or 0 from
+  @SELECT@ statements.
+- A tuple, where all elements implement 'FromSql'; the function will return
+  the result set from a @SELECT@ query as a list of tuples, or an empty list
+  for other query types.
+- A "one-tuple", i.e., a type in parentheses. The return value will be a list
+  of scalars, containing the values from the first (or only) column in
+  the result set. Note that, unlike Haskell, YeshQL does distinguish between
+  @Type@ and @(Type)@: the former is a scalar type, while the latter is a
+  one-tuple whose only element is of type @Type@.
+
+@
+    -- :paramName :: Type
+@
+
+Declares a Haskell type for a parameter. The parameter @:paramName@ can then
+be referenced zero or more times in the query itself, and will appear in the
+generated function signature in the order of declaration. So in the above
+example, the last query definition:
+
+@
+    -- name:getUserEx :: (Integer, String)
+    -- :id :: Integer
+    -- :filename :: String
+    SELECT id, name FROM users WHERE name = :filename OR id = :id;
+@
+
+...will produce the function:
+
+@
+getUserEx :: IConnection conn => conn -> Integer -> String -> IO [(Integer, String)]
+getUserEx conn id filename =
+    -- ... generated implementation left out
+@
+
  -}
 module Database.YeshQL
 ( yesh, yesh1

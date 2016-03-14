@@ -3,3 +3,4 @@ cabal.sandbox.config
 .*.sw[po]
 /dist
 /wiki
+.stack-work

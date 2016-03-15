@@ -6,7 +6,7 @@ license: MIT
 license-file: LICENSE
 author: Tobias Dammers
 maintainer: tdammers@gmail.com
--- copyright:
+copyright: 2015-2016 Tobias Dammers
 category: Database
 build-type: Simple
 -- extra-source-files:

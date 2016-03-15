@@ -45,6 +45,13 @@ Please refer to the Haddock documentation for further usage details.
 Probably. The project is hosted at https://bitbucket.org/tdammers/yeshql, feel
 free to comment there or send a message to tdammers@gmail.com if you find any.
 
+## Something about the name
+
+YeshQL is rather heavily inspired by YesQL, so it makes sense to blatantly
+steal most of the name. Throwing in an "H" for good measure (this being Haskell
+and all) makes it sound like Sean Connery, which automatically increases
+aweshomenesh, so that'sh what we'll roll with.
+
 ## License / Copying
 
 YeshQL is Free Software and provided as-is. Please see the enclosed LICENSE

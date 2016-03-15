@@ -30,8 +30,10 @@ test-suite tests
     type: exitcode-stdio-1.0
     build-depends: base >=4.6 && <5.0
                  , yeshql
+                 , stm
                  , tasty
                  , tasty-hunit
                  , tasty-quickcheck
+                 , HDBC
     hs-source-dirs: tests
     main-is: tests.hs

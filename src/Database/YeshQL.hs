@@ -126,6 +126,7 @@ module Database.YeshQL
 , mkQueryDecs
 , mkQueryExp
 , parseQuery
+, ParsedQuery (..)
 )
 where
 

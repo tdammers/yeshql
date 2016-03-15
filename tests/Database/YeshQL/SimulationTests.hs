@@ -19,6 +19,7 @@ tests =
     , testParametrizedSelect
     , testSingleInsert
     , testUpdateReturnRowCount
+    , testMultiQuery
     ]
 
 testSimpleSelect :: TestTree
@@ -104,6 +105,48 @@ testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScrip
                 , chatRowsAffected = 1
                 }
             ]
+
+[yesh|
+    -- name:findUser :: (Int)
+    -- :username :: String
+    SELECT id FROM users WHERE username = :username
+    ;
+    -- name:setUserName :: Integer
+    -- :userID :: Int
+    -- :username :: String
+    UPDATE users SET username = :username WHERE id = :userID
+|]
+
+testMultiQuery :: TestTree
+testMultiQuery = testCase "Define multiple queries in one QQ inside a where" $ chatTest chatScript $ \conn -> do
+    [userID] <- findUser "billy" conn
+    rowCount <- setUserName userID "tony" conn
+    assertEqual "" rowCount 1
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim
+                    "SELECT id FROM users WHERE username = ?"
+                , chatParams =
+                    [ exactly $ toSql "billy"
+                    ]
+                , chatResultSet = [[toSql (1 :: Int)]]
+                , chatColumnNames = ["id"]
+                , chatRowsAffected = 0
+                }
+            , ChatStep
+                { chatQuery = sameThrough trim
+                    "UPDATE users SET username = ? WHERE id = ?"
+                , chatParams =
+                    [ exactly $ toSql "tony"
+                    , exactly $ toSql (1 :: Int)
+                    ]
+                , chatResultSet = []
+                , chatColumnNames = []
+                , chatRowsAffected = 1
+                }
+            ]
+
 chatTest :: [ChatStep] -> (forall conn. IConnection conn => conn -> IO ()) -> Assertion
 chatTest chatScript action =
     newChatConnection chatScript >>= action

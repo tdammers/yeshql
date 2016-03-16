@@ -22,6 +22,7 @@ tests =
     , testMultiQuery
     , testQueryFromFile
     , testQueryFromFileAutoName
+    , testManyQueriesFromFileAutoName
     ]
 
 testSimpleSelect :: TestTree
@@ -188,6 +189,48 @@ testQueryFromFileAutoName = testCase "Query loaded from fixture file, deriving q
                 , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
                 , chatColumnNames = ["id", "username"]
                 , chatRowsAffected = 0
+                }
+            ]
+
+[yeshFile|tests/fixtures/multiQueries.sql|]
+
+testManyQueriesFromFileAutoName :: TestTree
+testManyQueriesFromFileAutoName = testCase "Many queries from fixture file, auto-naming some" $
+        chatTest chatScript $ \conn -> do
+            count0 <- multiQueries_0 conn
+            count1 <- multiQueriesNamed conn
+            count2 <- multiQueries_2 conn
+            assertEqual "" count0 1
+            assertEqual "" count1 2
+            assertEqual "" count2 3
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim
+                    "BLAH"
+                , chatParams =
+                    []
+                , chatResultSet = []
+                , chatColumnNames = []
+                , chatRowsAffected = 1
+                }
+            , ChatStep
+                { chatQuery = sameThrough trim
+                    "PIZZA"
+                , chatParams =
+                    []
+                , chatResultSet = []
+                , chatColumnNames = []
+                , chatRowsAffected = 2
+                }
+            , ChatStep
+                { chatQuery = sameThrough trim
+                    "OLIVES"
+                , chatParams =
+                    []
+                , chatResultSet = []
+                , chatColumnNames = []
+                , chatRowsAffected = 3
                 }
             ]
 

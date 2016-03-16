@@ -122,11 +122,15 @@ getUserEx conn id filename =
 
  -}
 module Database.YeshQL
-( yesh, yesh1
+(
+-- * Quasi-quoters that take strings
+  yesh, yesh1
+-- * Quasi-quoters that take filenames
 , yeshFile, yesh1File
 , mkQueryDecs
 , mkQueryExp
 , parseQuery
+, parseQueries
 , ParsedQuery (..)
 )
 where
@@ -208,25 +212,31 @@ withParsedQueryFile p fn =
     where
         queryName = makeValidIdentifier . takeBaseName $ fn
 
+withParsedQueriesFile :: ([ParsedQuery] -> Q a) -> FilePath -> Q a
+withParsedQueriesFile p fn =
+    withParsedFile (parseQueriesN fn) (p . nameQueries queryName) fn
+    where
+        queryName = makeValidIdentifier . takeBaseName $ fn
+
 nameQuery :: String -> ParsedQuery -> ParsedQuery
 nameQuery qname pq
     | null (pqQueryName pq) = pq { pqQueryName = qname }
     | otherwise = pq
+
+nameQueries :: String -> [ParsedQuery] -> [ParsedQuery]
+nameQueries basename queries =
+    zipWith nameQuery queryNames queries
+    where
+        queryNames = [ basename ++ "_" ++ show i | i <- [0..] ]
 
 makeValidIdentifier :: String -> String
 makeValidIdentifier =
     filter isAlphaNum .
     dropWhile (not . isAlpha)
 
-withParsedQueriesFile :: ([ParsedQuery] -> Q a) -> FilePath -> Q a
-withParsedQueriesFile = withParsedFile parseQueries
-
 withParsed :: (Monad m, Show e) => (s -> Either e a) -> (a -> m b) -> s -> m b
-withParsed = withParsed' Nothing . const
-
-withParsed' :: (Monad m, Show e) => Maybe String -> (Maybe String -> s -> Either e a) -> (a -> m b) -> s -> m b
-withParsed' qname p a src = do
-    let parseResult = p qname src
+withParsed p a src = do
+    let parseResult = p src
     arg <- case parseResult of
                 Left e -> fail . show $ e
                 Right x -> return x

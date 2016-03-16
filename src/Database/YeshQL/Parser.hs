@@ -18,8 +18,6 @@ import Data.Map (Map)
 import Data.List (foldl', nub)
 import Data.Maybe (catMaybes, fromMaybe)
 
-import Debug.Trace (trace)
-
 data ParsedType = PlainType String | MaybeType String | AutoType
     deriving Show
 
@@ -93,7 +91,6 @@ extractDocComment = unlines . catMaybes . map extractItem
 
 parseQueryN :: String -> String -> Either ParseError ParsedQuery
 parseQueryN fn src = 
-    trace ("Filename: " ++ show fn) $
     runParser mainP () fn src
 
 parseQuery :: String -> Either ParseError ParsedQuery
@@ -101,7 +98,6 @@ parseQuery = parseQueryN ""
 
 parseQueriesN :: String -> String -> Either ParseError [ParsedQuery]
 parseQueriesN fn src =
-    trace ("Filename: " ++ show fn) $
     runParser multiP () fn src
 
 parseQueries :: String -> Either ParseError [ParsedQuery]
@@ -129,7 +125,6 @@ queryP :: Parsec String () ParsedQuery
 queryP = do
     spaces
     (qn, retType) <- option ("", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
-    trace ("Query name: " ++ show qn) return ()
     extraItems <- many (paramDeclP <|> commentP)
     items <- many (try commentP <|> try itemP)
     return $ parsedQuery

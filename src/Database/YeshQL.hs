@@ -120,6 +120,44 @@ getUserEx conn id filename =
     -- ... generated implementation left out
 @
 
+= Loading Queries From External Files
+
+The 'yeshFile' and 'yesh1File' flavors take a file name instead of SQL
+definition strings. Using these, you can put your SQL in external files rather
+than clutter your code with long quasi-quotation blocks.
+
+= Other Functions That YeshQL Generates
+
+On top of the obvious query functions, a top-level YeshQL quasiquotation
+introduces two more definitions per query: a 'String' variable prefixed
+@describe-@, which contains the SQL query as passed to HDBC (similar to the
+@DESCRIBE@ feature in some RDBMS systems), and another 'String' variable
+prefixed @doc-@, which contains all the free-form comments that precede the SQL
+query in the query definition.
+
+So for example, this quasiquotation:
+
+@
+[yesh1|
+    -- name:getUser :: (Integer, String)
+    -- :userID :: Integer
+    -- Gets one user by the "id" column.
+    SELECT id, username FROM users WHERE id = :userID LIMIT 1 |]
+@
+
+...would produce the following three top-level definitions:
+
+@
+getUser :: IConnection conn => Integer -> conn -> [(Integer, String)]
+getUser userID conn = ...
+
+describeGetUser :: String
+describeGetUser = \"SELECT id, username FROM users WHERE id = ? LIMIT 1\"
+
+docGetUser :: String
+docGetUser = \"Gets one user by the \\\"id\\\" column.\"
+@
+
  -}
 module Database.YeshQL
 (
@@ -127,10 +165,13 @@ module Database.YeshQL
   yesh, yesh1
 -- * Quasi-quoters that take filenames
 , yeshFile, yesh1File
+-- * Low-level generators in the 'Q' monad
 , mkQueryDecs
 , mkQueryExp
+-- * Query parsers
 , parseQuery
 , parseQueries
+-- * AST
 , ParsedQuery (..)
 )
 where
@@ -155,6 +196,8 @@ nthIdent i
                     in nthIdent j ++ nthIdent k
 
 -- | Generate a top-level declaration or an expression for a single SQL query.
+-- If used at the top level (i.e., generating a declaration), the query
+-- definition must specify a query name.
 yesh1 :: QuasiQuoter
 yesh1 = QuasiQuoter
         { quoteDec = withParsedQuery mkQueryDecs
@@ -164,6 +207,32 @@ yesh1 = QuasiQuoter
         }
 
 -- | Generate top-level declarations or expressions for several SQL queries.
+-- If used at the top level (i.e., generating declarations), all queries in the
+-- definitions must be named, and 'yesh' will generate a separate set of
+-- functions for each.
+-- If used in an expression context, the current behavior is somewhat
+-- undesirable, namely sequencing the queries using '>>'.
+--
+-- Future versions will most likely change this to create a tuple of query
+-- expressions instead, such that you can write something like:
+--
+-- @
+-- let (createUser, getUser, updateUser, deleteUser) = [yesh|
+--      -- name:createUser :: (Integer)
+--      -- :username :: String
+--      INSERT INTO users (username) VALUES (:username) RETURNING id;
+--      -- name:getUser :: (Integer, String)
+--      -- :userID :: Integer
+--      SELECT id, username FROM users WHERE id = :userID;
+--      -- name:updateUser :: Integer
+--      -- :userID :: Integer
+--      -- :username :: String
+--      UPDATE users SET username = :username WHERE id = :userID;
+--      -- name:deleteUser :: Integer
+--      -- :userID :: Integer
+--      DELETE FROM users WHERE id = :userID LIMIT 1;
+--  |]
+-- @
 yesh :: QuasiQuoter
 yesh = QuasiQuoter
         { quoteDec = withParsedQueries mkQueryDecsMulti
@@ -172,6 +241,20 @@ yesh = QuasiQuoter
         , quotePat = error "yesh does not generate patterns"
         }
 
+-- | Generate one query definition or expression from an external file.
+-- In a declaration context, the query name will be derived from the filename
+-- unless the query contains an explicit name. Query name derivation works as
+-- follows:
+--
+-- - Take only the basename (stripping off the directories and extension)
+-- - Remove all non-alphabetic characters from the beginning of the name
+-- - Remove all non-alphanumeric characters from the name
+-- - Lower-case the first character.
+--
+-- Note that since there is always a filename to derive the query name from,
+-- explicitly defining a query name is only necessary when you want it to
+-- differ from the filename; however, making it explicit anyway is probably a
+-- good idea.
 yesh1File :: QuasiQuoter
 yesh1File = QuasiQuoter
             { quoteDec = withParsedQueryFile mkQueryDecs
@@ -180,6 +263,14 @@ yesh1File = QuasiQuoter
             , quotePat = error "yesh1File does not generate patterns"
             }
 
+-- | Generate multiple query definitions or expressions from an external file.
+-- Query name derivation works exactly like for 'yesh1File', except that an
+-- underscore and a 0-based query index are appended to disambiguate queries
+-- from the same file.
+--
+-- In an expression context, the same caveats apply as for 'yesh', i.e., to
+-- generate expressions, you will almost certainly want 'yesh1File', not
+-- 'yeshFile'.
 yeshFile :: QuasiQuoter
 yeshFile = QuasiQuoter
             { quoteDec = withParsedQueriesFile mkQueryDecsMulti
@@ -280,6 +371,7 @@ mkType AutoType = [t|String|]
 mkQueryDecsMulti :: [ParsedQuery] -> Q [Dec]
 mkQueryDecsMulti queries = concat <$> mapM mkQueryDecs queries
 
+-- TODO: instead of sequencing the queries, put them in a tuple.
 mkQueryExpMulti :: [ParsedQuery] -> Q Exp
 mkQueryExpMulti queries =
     foldl1 (\a b -> VarE '(>>) `AppE` a `AppE` b) <$> mapM mkQueryExp queries

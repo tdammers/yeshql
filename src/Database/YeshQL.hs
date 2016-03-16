@@ -280,8 +280,13 @@ yeshFile = QuasiQuoter
             }
 
 queryName :: String -> String -> Name
-queryName prefix basename =
-    mkName $ prefix ++ ucfirst basename
+queryName prefix = mkName . queryIdentifier prefix
+
+queryIdentifier :: String -> String -> String
+queryIdentifier "" basename =
+    lcfirst . makeValidIdentifier . takeBaseName $ basename
+queryIdentifier prefix basename =
+    (prefix ++) . ucfirst . makeValidIdentifier . takeBaseName $ basename
 
 ucfirst :: String -> String
 ucfirst "" = ""
@@ -299,15 +304,17 @@ withParsedQueries = withParsed parseQueries
 
 withParsedQueryFile :: (ParsedQuery -> Q a) -> FilePath -> Q a
 withParsedQueryFile p fn =
-    withParsedFile (parseQueryN fn) (p . nameQuery queryName) fn
-    where
-        queryName = makeValidIdentifier . takeBaseName $ fn
+    withParsedFile
+        (parseQueryN fn)
+        (p . nameQuery (queryIdentifier "" fn))
+        fn
 
 withParsedQueriesFile :: ([ParsedQuery] -> Q a) -> FilePath -> Q a
 withParsedQueriesFile p fn =
-    withParsedFile (parseQueriesN fn) (p . nameQueries queryName) fn
-    where
-        queryName = makeValidIdentifier . takeBaseName $ fn
+    withParsedFile
+        (parseQueriesN fn)
+        (p . nameQueries (queryIdentifier "" fn))
+        fn
 
 nameQuery :: String -> ParsedQuery -> ParsedQuery
 nameQuery qname pq

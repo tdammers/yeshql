@@ -1,6 +1,8 @@
 module Database.YeshQL.Parser
 ( parseQuery
 , parseQueries
+, parseQueryN
+, parseQueriesN
 , ParsedQuery (..)
 , ParsedType (..)
 , pqTypeFor
@@ -15,6 +17,8 @@ import Data.Map (Map)
 
 import Data.List (foldl', nub)
 import Data.Maybe (catMaybes, fromMaybe)
+
+import Debug.Trace (trace)
 
 data ParsedType = PlainType String | MaybeType String | AutoType
     deriving Show
@@ -87,11 +91,21 @@ extractDocComment = unlines . catMaybes . map extractItem
         extractItem (ParsedComment str) = Just str
         extractItem _ = Nothing
 
+parseQueryN :: String -> String -> Either ParseError ParsedQuery
+parseQueryN fn src = 
+    trace ("Filename: " ++ show fn) $
+    runParser mainP () fn src
+
 parseQuery :: String -> Either ParseError ParsedQuery
-parseQuery src = runParser mainP () "query" src
+parseQuery = parseQueryN ""
+
+parseQueriesN :: String -> String -> Either ParseError [ParsedQuery]
+parseQueriesN fn src =
+    trace ("Filename: " ++ show fn) $
+    runParser multiP () fn src
 
 parseQueries :: String -> Either ParseError [ParsedQuery]
-parseQueries src = runParser multiP () "queries" src
+parseQueries = parseQueriesN ""
 
 mainP :: Parsec String () ParsedQuery
 mainP = do
@@ -114,7 +128,8 @@ multiP = do
 queryP :: Parsec String () ParsedQuery
 queryP = do
     spaces
-    (qn, retType) <- option ("query", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
+    (qn, retType) <- option ("", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
+    trace ("Query name: " ++ show qn) return ()
     extraItems <- many (paramDeclP <|> commentP)
     items <- many (try commentP <|> try itemP)
     return $ parsedQuery
@@ -142,7 +157,7 @@ namelessDeclP = do
     retType <- returnTypeP
     whitespaceP
     newlineP
-    return ("query", retType)
+    return ("", retType)
 
 identifierP :: Parsec String () String
 identifierP =

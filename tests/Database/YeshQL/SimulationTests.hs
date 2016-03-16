@@ -20,6 +20,8 @@ tests =
     , testSingleInsert
     , testUpdateReturnRowCount
     , testMultiQuery
+    , testQueryFromFile
+    , testQueryFromFileAutoName
     ]
 
 testSimpleSelect :: TestTree
@@ -144,6 +146,48 @@ testMultiQuery = testCase "Define multiple queries in one QQ inside a where" $ c
                 , chatResultSet = []
                 , chatColumnNames = []
                 , chatRowsAffected = 1
+                }
+            ]
+
+testQueryFromFile :: TestTree
+testQueryFromFile = testCase "Query loaded from fixture file" $
+        chatTest chatScript $ \conn -> do
+            [(userID, username)] <- [yesh1File|tests/fixtures/getUserNamed.sql|] 1 conn
+            assertEqual "" userID 1
+            assertEqual "" username "billy"
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim
+                    "SELECT id, username FROM users WHERE id = ?"
+                , chatParams =
+                    [ exactly $ toSql (1 :: Int)
+                    ]
+                , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
+                , chatColumnNames = ["id", "username"]
+                , chatRowsAffected = 0
+                }
+            ]
+
+[yesh1File|tests/fixtures/getUser.sql|]
+
+testQueryFromFileAutoName :: TestTree
+testQueryFromFileAutoName = testCase "Query loaded from fixture file, deriving query name from filename" $
+        chatTest chatScript $ \conn -> do
+            [(userID, username)] <- getUser 1 conn
+            assertEqual "" userID 1
+            assertEqual "" username "billy"
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim
+                    "SELECT id, username FROM users WHERE id = ?"
+                , chatParams =
+                    [ exactly $ toSql (1 :: Int)
+                    ]
+                , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
+                , chatColumnNames = ["id", "username"]
+                , chatRowsAffected = 0
                 }
             ]
 

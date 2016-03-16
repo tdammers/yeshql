@@ -123,6 +123,7 @@ getUserEx conn id filename =
  -}
 module Database.YeshQL
 ( yesh, yesh1
+, yeshFile, yesh1File
 , mkQueryDecs
 , mkQueryExp
 , parseQuery
@@ -138,6 +139,8 @@ import Database.HDBC (fromSql, toSql, run, ConnWrapper, IConnection, quickQuery'
 import qualified Text.Parsec as P
 import Data.Char (chr, ord, toUpper, toLower)
 import Control.Applicative ( (<$>), (<*>) )
+import System.FilePath (takeBaseName)
+import Data.Char (isAlpha, isAlphaNum)
 
 import Database.YeshQL.Parser
 
@@ -165,6 +168,22 @@ yesh = QuasiQuoter
         , quotePat = error "yesh does not generate patterns"
         }
 
+yesh1File :: QuasiQuoter
+yesh1File = QuasiQuoter
+            { quoteDec = withParsedQueryFile mkQueryDecs
+            , quoteExp = withParsedQueryFile mkQueryExp
+            , quoteType = error "yesh1File does not generate types"
+            , quotePat = error "yesh1File does not generate patterns"
+            }
+
+yeshFile :: QuasiQuoter
+yeshFile = QuasiQuoter
+            { quoteDec = withParsedQueriesFile mkQueryDecsMulti
+            , quoteExp = withParsedQueriesFile mkQueryExpMulti
+            , quoteType = error "yeshFile does not generate types"
+            , quotePat = error "yeshFile does not generate patterns"
+            }
+
 queryName :: String -> String -> Name
 queryName prefix basename =
     mkName $ prefix ++ ucfirst basename
@@ -183,13 +202,48 @@ withParsedQuery = withParsed parseQuery
 withParsedQueries :: ([ParsedQuery] -> Q a) -> String -> Q a
 withParsedQueries = withParsed parseQueries
 
+withParsedQueryFile :: (ParsedQuery -> Q a) -> FilePath -> Q a
+withParsedQueryFile p fn =
+    withParsedFile (parseQueryN fn) (p . nameQuery queryName) fn
+    where
+        queryName = makeValidIdentifier . takeBaseName $ fn
+
+nameQuery :: String -> ParsedQuery -> ParsedQuery
+nameQuery qname pq
+    | null (pqQueryName pq) = pq { pqQueryName = qname }
+    | otherwise = pq
+
+makeValidIdentifier :: String -> String
+makeValidIdentifier =
+    filter isAlphaNum .
+    dropWhile (not . isAlpha)
+
+withParsedQueriesFile :: ([ParsedQuery] -> Q a) -> FilePath -> Q a
+withParsedQueriesFile = withParsedFile parseQueries
+
 withParsed :: (Monad m, Show e) => (s -> Either e a) -> (a -> m b) -> s -> m b
-withParsed p a src = do
-    let parseResult = p src
+withParsed = withParsed' Nothing . const
+
+withParsed' :: (Monad m, Show e) => Maybe String -> (Maybe String -> s -> Either e a) -> (a -> m b) -> s -> m b
+withParsed' qname p a src = do
+    let parseResult = p qname src
     arg <- case parseResult of
                 Left e -> fail . show $ e
                 Right x -> return x
     a arg
+
+class MonadPerformIO m where
+    performIO :: IO a -> m a
+
+instance MonadPerformIO IO where
+    performIO = id
+
+instance MonadPerformIO Q where
+    performIO = runIO
+
+withParsedFile :: (MonadPerformIO m, Monad m, Show e) => (String -> Either e a) -> (a -> m b) -> FilePath -> m b
+withParsedFile p a filename =
+    performIO (readFile filename) >>= withParsed p a
 
 
 pgQueryType :: ParsedQuery -> TypeQ

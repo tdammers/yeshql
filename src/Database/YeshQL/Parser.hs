@@ -17,6 +17,7 @@ import Data.Map (Map)
 
 import Data.List (foldl', nub)
 import Data.Maybe (catMaybes, fromMaybe)
+import Debug.Trace (trace)
 
 data ParsedType = PlainType String | MaybeType String | AutoType
     deriving Show
@@ -30,14 +31,22 @@ data ParsedQuery =
         , pqParamTypes :: Map String ParsedType
         , pqReturnType :: Either ParsedType [ParsedType]
         , pqDocComment :: String
+        , pqDDL :: Bool
         }
         deriving (Show)
 
 pqTypeFor :: ParsedQuery -> String -> Maybe ParsedType
 pqTypeFor q pname = Map.lookup pname (pqParamTypes q)
 
-parsedQuery :: String -> String -> [(String, ParsedType)] -> [(String, ParsedType)] -> Either ParsedType [ParsedType] -> String -> ParsedQuery
-parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment =
+parsedQuery :: String
+            -> String
+            -> [(String, ParsedType)]
+            -> [(String, ParsedType)]
+            -> Either ParsedType [ParsedType]
+            -> String
+            -> Bool
+            -> ParsedQuery
+parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment isDDL =
     ParsedQuery
         queryName
         queryString
@@ -46,6 +55,7 @@ parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment =
         (extractParamTypeMap (paramsExtra ++ paramsRaw))
         returnType
         docComment
+        isDDL
 
 extractParamNames :: [(String, ParsedType)] -> [String]
 extractParamNames xs = 
@@ -65,7 +75,15 @@ extractParamTypeMap = foldl' applyItem Map.empty
                 (Just t', AutoType) -> m
                 (Just t', t) -> error $ "Inconsistent types found for parameter '" ++ n ++ "': '" ++ show t' ++ "' vs. '" ++ show t ++ "'"
 
-data ParsedItem = ParsedLiteral String | ParsedParam String ParsedType | ParsedComment String
+data ParsedItem = ParsedLiteral String
+                | ParsedParam String ParsedType
+                | ParsedComment String
+                | ParsedAnnotation Annotation
+                deriving (Show)
+
+data Annotation =
+    DDLAnnotation
+    deriving (Show)
 
 extractParsedQuery :: [ParsedItem] -> String
 extractParsedQuery = concat . map extractItem
@@ -89,6 +107,11 @@ extractDocComment = unlines . catMaybes . map extractItem
         extractItem (ParsedComment str) = Just str
         extractItem _ = Nothing
 
+extractIsDDL :: [ParsedItem] -> Bool
+extractIsDDL items =
+    trace (show items) $
+    not . null $ [ undefined | ParsedAnnotation DDLAnnotation <- items ]
+
 parseQueryN :: String -> String -> Either ParseError ParsedQuery
 parseQueryN fn src = 
     runParser mainP () fn src
@@ -106,6 +129,7 @@ parseQueries = parseQueriesN ""
 mainP :: Parsec String () ParsedQuery
 mainP = do
     q <- queryP
+    trace (show q) $ return ()
     eof
     return q
 
@@ -115,7 +139,7 @@ multiP = do
         sepBy queryMayP sepP
     where
         sepP :: Parsec String () ()
-        sepP = try (spaces >> char ';' >> notFollowedBy (char ';') >> spaces)
+        sepP = try (spaces >> string ";;;" >> spaces)
         queryMayP :: Parsec String () (Maybe ParsedQuery)
         queryMayP = do
             spaces
@@ -125,8 +149,8 @@ queryP :: Parsec String () ParsedQuery
 queryP = do
     spaces
     (qn, retType) <- option ("", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
-    extraItems <- many (paramDeclP <|> commentP)
-    items <- many (try commentP <|> try itemP)
+    extraItems <- many (try annotationP <|> paramDeclP <|> commentP)
+    items <- many (try itemP <|> try commentP)
     return $ parsedQuery
                 qn
                 (extractParsedQuery items)
@@ -134,6 +158,7 @@ queryP = do
                 (extractParsedParams extraItems)
                 retType
                 (extractDocComment (extraItems ++ items))
+                (extractIsDDL (extraItems ++ items))
 
 nameDeclP :: Parsec String () (String, Either ParsedType [ParsedType])
 nameDeclP = do
@@ -182,7 +207,25 @@ typeP = do
         return $ MaybeType name
 
 itemP :: Parsec String () ParsedItem
-itemP = paramP <|> quotedP <|> literalP
+itemP = paramP <|> quotedP <|> literalP <|> semicolonP
+
+semicolonP :: Parsec String () ParsedItem
+semicolonP = try $ do
+    char ';'
+    notFollowedBy $ char ';'
+    return $ ParsedLiteral ";"
+
+annotationP :: Parsec String () ParsedItem
+annotationP = do
+    try $ (whitespaceP >> string "--" >> whitespaceP >> char '@')
+    ParsedAnnotation <$> ddlAnnotationP
+
+ddlAnnotationP :: Parsec String () Annotation
+ddlAnnotationP = do
+    string "ddl"
+    whitespaceP
+    newlineP
+    return DDLAnnotation
 
 paramDeclP :: Parsec String () ParsedItem
 paramDeclP = do
@@ -202,7 +245,7 @@ commentP :: Parsec String () ParsedItem
 commentP = do
     try (whitespaceP >> string "--")
     whitespaceP
-    ParsedComment <$> manyTill (noneOf " \t\n;") (newlineP <|> ignore (char ';'))
+    ParsedComment <$> manyTill (noneOf " \t\n;") newlineP
 
 paramP :: Parsec String () ParsedItem
 paramP = do

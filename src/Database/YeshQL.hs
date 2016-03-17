@@ -40,7 +40,7 @@ given in the query definition. Example:
     insertUser :: IConnection conn => conn -> String -> IO [Integer]
 @
 
-= Syntax
+== Syntax
 
 Because SQL itself does not *quite* provide enough information to generate a
 fully typed Haskell function, we extend SQL syntax a bit.
@@ -51,19 +51,25 @@ Here's what a typical YeshQL definition looks like:
 [yesh|
     -- name:insertUser :: (Integer)
     -- :name :: String
-    INSERT INTO users (name) VALUES (:name) RETURNING id;
+    INSERT INTO users (name) VALUES (:name) RETURNING id
+    ;;;
     -- name:deleteUser :: Integer
     -- :id :: Integer
-    DELETE FROM users WHERE id = :id;
+    DELETE FROM users WHERE id = :id
+    ;;;
     -- name:getUser :: (Integer, String)
     -- :id :: Integer
-    SELECT id, name FROM users WHERE id = :id;
+    SELECT id, name FROM users WHERE id = :id
+    ;;;
     -- name:getUserEx :: (Integer, String)
     -- :id :: Integer
     -- :filename :: String
-    SELECT id, name FROM users WHERE name = :filename OR id = :id;
+    SELECT id, name FROM users WHERE name = :filename OR id = :id
     |]
 @
+
+Note that queries are separated by _triple_ semicolons; this is done in order
+to allow semicolons to appear inside queries.
 
 On top of standard SQL syntax, YeshQL query definitions are preceded by some
 extra information in order to generate well-typed HDBC queries. All that
@@ -83,9 +89,9 @@ be a function of type @IConnection conn => conn -> {...} -> IO (Integer)@
 
 The declared return type can be one of the following:
 
-- '()'; the generated function will ignore any and all results from the query
-  and always return '()'.
-- An integer scalar, e.g. @Integer@ or @Int@; the generated function will
+- (); the generated function will ignore any and all results from the query
+  and always return ().
+- An integer scalar, e.g. 'Integer' or 'Int'; the generated function will
   return a row count from @INSERT@ / @UPDATE@ / ... statements, or 0 from
   @SELECT@ statements.
 - A tuple, where all elements implement 'FromSql'; the function will return
@@ -121,13 +127,46 @@ getUserEx conn id filename =
     -- ... generated implementation left out
 @
 
-= Loading Queries From External Files
+== Loading Queries From External Files
 
 The 'yeshFile' and 'yesh1File' flavors take a file name instead of SQL
 definition strings. Using these, you can put your SQL in external files rather
 than clutter your code with long quasi-quotation blocks.
 
-= Other Functions That YeshQL Generates
+== DDL Queries
+
+Normally, you will have one query per function, and that query takes some
+parameters, and returns a result set or a row count. For DDL queries, however,
+we aren't interested in the results, and we often want to execute multiple
+queries with just one function call, e.g. to set up an entire database schema
+using multiple @CREATE TABLE@ statements.
+
+By adding the @\@ddl@ annotation to a query definition, YeshQL will change the
+following things:
+
+- The return type of that query, regardless of what you declare, will be '()'.
+  It is recommended to never declare an explicit return type other than '()'
+  for DDL queries, as future versions may report this as an error.
+- The query cannot accept any parameters.
+- The query may consist of multiple individual SQL queries,
+  semicolon-separated. The combined query is sent to the HDBC backend as-is.
+- Instead of 'run', YeshQL will use 'runRaw' in the code it generates.
+
+In practice, this means that the type of a DDL function thus generated will
+always be @'IConnection' conn => conn -> 'IO' ()@.
+
+=== Example:
+
+@
+[yesh1|
+    -- name:makeDatabaseSchema
+    -- @ddl
+    CREATE TABLE users (id INTEGER, username TEXT);
+    CREATE TABLE pages (id INTEGER, title TEXT, slug TEXT, body TEXT);
+    |]
+@
+
+== Other Functions That YeshQL Generates
 
 On top of the obvious query functions, a top-level YeshQL quasiquotation
 introduces two more definitions per query: a 'String' variable prefixed
@@ -184,7 +223,7 @@ import Language.Haskell.TH.Syntax (Quasi(qAddDependentFile))
 #endif
 import Data.List (isPrefixOf, foldl')
 import Data.Maybe (catMaybes, fromMaybe)
-import Database.HDBC (fromSql, toSql, run, ConnWrapper, IConnection, quickQuery')
+import Database.HDBC (fromSql, toSql, run, runRaw, ConnWrapper, IConnection, quickQuery')
 import qualified Text.Parsec as P
 import Data.Char (chr, ord, toUpper, toLower)
 import Control.Applicative ( (<$>), (<*>) )
@@ -383,7 +422,12 @@ pgQueryType query =
       |]
     where
         argTypes = map (mkType . fromMaybe AutoType . pqTypeFor query) (pqParamNames query)
-        returnType = case pqReturnType query of
+        returnType =
+            if pqDDL query
+                then
+                    tupleT 0
+                else
+                    case pqReturnType query of
                         Left tn -> mkType tn
                         Right [] -> tupleT 0
                         Right (x:[]) -> appT listT $ mkType x
@@ -463,7 +507,14 @@ mkQueryBody query = do
         queryFunc = case pqReturnType query of
                         Left _ -> [| \qstr params conn -> $convert <$> run conn qstr params |]
                         Right _ -> [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
-    queryFunc
-        `appE` (litE . stringL . pqQueryString $ query)
-        `appE` (listE [ appE (varE 'toSql) (varE . mkName $ n) | (n, t) <- (pqParamsRaw query) ])
-        `appE` (varE . mkName $ "conn")
+        rawQueryFunc = [| \qstr conn -> runRaw conn qstr |]
+    if pqDDL query
+        then
+            rawQueryFunc
+                `appE` (litE . stringL . pqQueryString $ query)
+                `appE` (varE . mkName $ "conn")
+        else
+            queryFunc
+                `appE` (litE . stringL . pqQueryString $ query)
+                `appE` (listE [ appE (varE 'toSql) (varE . mkName $ n) | (n, t) <- (pqParamsRaw query) ])
+                `appE` (varE . mkName $ "conn")

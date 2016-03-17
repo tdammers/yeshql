@@ -23,6 +23,7 @@ tests =
     , testQueryFromFile
     , testQueryFromFileAutoName
     , testManyQueriesFromFileAutoName
+    , testDDL
     ]
 
 testSimpleSelect :: TestTree
@@ -113,7 +114,7 @@ testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScrip
     -- name:findUser :: (Int)
     -- :username :: String
     SELECT id FROM users WHERE username = :username
-    ;
+    ;;;
     -- name:setUserName :: Integer
     -- :userID :: Int
     -- :username :: String
@@ -233,6 +234,34 @@ testManyQueriesFromFileAutoName = testCase "Many queries from fixture file, auto
                 , chatRowsAffected = 3
                 }
             ]
+
+testDDL :: TestTree
+testDDL = testCase "typical DDL statement sequence" $
+        chatTest chatScript
+        [yesh1|
+            -- @ddl
+            CREATE TABLE users
+                ( id INTEGER
+                , username TEXT
+                );
+            CREATE TABLE pages
+                ( id INTEGER
+                , owner_id INTEGER
+                , title TEXT
+                , body TEXT
+                , FOREIGN KEY (owner_id) REFERENCES users (id)
+                );
+        |]
+        where
+            chatScript =
+                [ ChatStep
+                    { chatQuery = anything
+                    , chatParams = []
+                    , chatResultSet = []
+                    , chatColumnNames = []
+                    , chatRowsAffected = 0
+                    }
+                ]
 
 chatTest :: [ChatStep] -> (forall conn. IConnection conn => conn -> IO ()) -> Assertion
 chatTest chatScript action =

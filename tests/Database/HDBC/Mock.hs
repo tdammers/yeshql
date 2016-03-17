@@ -219,7 +219,7 @@ newChatConnection steps = do
                 , mockPrepare = \q -> do
                     resultVar <- newTChanIO
                     let exec p = do
-                        atomically (readTChan c) >>= execChatStep q p resultVar
+                            atomically (readTChan c) >>= execChatStep q p resultVar
                     return $
                         Statement
                             { execute = exec

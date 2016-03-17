@@ -17,7 +17,6 @@ import Data.Map (Map)
 
 import Data.List (foldl', nub)
 import Data.Maybe (catMaybes, fromMaybe)
-import Debug.Trace (trace)
 
 data ParsedType = PlainType String | MaybeType String | AutoType
     deriving Show
@@ -109,7 +108,6 @@ extractDocComment = unlines . catMaybes . map extractItem
 
 extractIsDDL :: [ParsedItem] -> Bool
 extractIsDDL items =
-    trace (show items) $
     not . null $ [ undefined | ParsedAnnotation DDLAnnotation <- items ]
 
 parseQueryN :: String -> String -> Either ParseError ParsedQuery
@@ -129,7 +127,6 @@ parseQueries = parseQueriesN ""
 mainP :: Parsec String () ParsedQuery
 mainP = do
     q <- queryP
-    trace (show q) $ return ()
     eof
     return q
 

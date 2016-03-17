@@ -1,4 +1,5 @@
 {-#LANGUAGE TemplateHaskell #-}
+{-#LANGUAGE CPP #-}
 {-|
 Module: Database.YeshQL
 Description: Turn SQL queries into type-safe functions.
@@ -178,6 +179,9 @@ where
 
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
+#if MIN_VERSION_template_haskell(2,7,0)
+import Language.Haskell.TH.Syntax (Quasi(qAddDependentFile))
+#endif
 import Data.List (isPrefixOf, foldl')
 import Data.Maybe (catMaybes, fromMaybe)
 import Database.HDBC (fromSql, toSql, run, ConnWrapper, IConnection, quickQuery')
@@ -340,19 +344,34 @@ withParsed p a src = do
                 Right x -> return x
     a arg
 
+-- | Monad in which we can perform IO and tag dependencies. Mostly needed
+-- because we cannot easily make a 'MonadIO' instance for 'Q', and also
+-- because we want to avoid a dependency on mtl or transformers. For
+-- convenience, we also pull 'addDependentFile' into this typeclass.
 class MonadPerformIO m where
     performIO :: IO a -> m a
+    addDependentFile :: FilePath -> m ()
 
 instance MonadPerformIO IO where
     performIO = id
+    -- in IO, don't try to track dependencies
+    addDependentFile = const $ return ()
 
 instance MonadPerformIO Q where
     performIO = runIO
+#if MIN_VERSION_template_haskell(2,7,0)
+    -- modern GHC: proper implementation
+    addDependentFile = qAddDependentFile
+#else
+    -- ancient GHC: ignore dependency
+    addDependentFile = const $ return ()
+#endif
 
 withParsedFile :: (MonadPerformIO m, Monad m, Show e) => (String -> Either e a) -> (a -> m b) -> FilePath -> m b
 withParsedFile p a filename =
-    performIO (readFile filename) >>= withParsed p a
-
+    addDependentFile filename >>
+    performIO (readFile filename) >>=
+        withParsed p a
 
 pgQueryType :: ParsedQuery -> TypeQ
 pgQueryType query =

@@ -1,5 +1,5 @@
 name: yeshql
-version: 0.2.0.1
+version: 0.3.0.0
 synopsis: YesQL-style SQL database abstraction
 description:
 license: MIT

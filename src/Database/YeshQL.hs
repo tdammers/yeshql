@@ -1,5 +1,6 @@
 {-#LANGUAGE TemplateHaskell #-}
 {-#LANGUAGE CPP #-}
+{-#LANGUAGE RankNTypes #-}
 {-|
 Module: Database.YeshQL
 Description: Turn SQL queries into type-safe functions.
@@ -414,7 +415,7 @@ withParsedFile p a filename =
 
 pgQueryType :: ParsedQuery -> TypeQ
 pgQueryType query =
-    [t|IConnection conn =>
+    [t|forall conn. IConnection conn =>
         $(foldr
             (\a b -> [t| $a -> $b |])
             [t| conn -> IO $(returnType) |]

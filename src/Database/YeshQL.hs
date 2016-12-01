@@ -38,7 +38,7 @@ given in the query definition. Example:
 ...will create a top-level function of type:
 
 @
-    insertUser :: IConnection conn => conn -> String -> IO [Integer]
+    insertUser :: IConnection conn => conn -> String -> IO (Maybe Integer)
 @
 
 == Syntax
@@ -62,7 +62,7 @@ Here's what a typical YeshQL definition looks like:
     -- :id :: Integer
     SELECT id, name FROM users WHERE id = :id
     ;;;
-    -- name:getUserEx :: (Integer, String)
+    -- name:getUserEx :: [(Integer, String)]
     -- :id :: Integer
     -- :filename :: String
     SELECT id, name FROM users WHERE name = :filename OR id = :id
@@ -85,24 +85,34 @@ Let's break it down:
 @
 
 This line tells YeshQL to generate an object called @insertUser@, which should
-be a function of type @IConnection conn => conn -> {...} -> IO (Integer)@
+be a function of type @IConnection conn => conn -> {...} -> IO (Maybe Integer)@
 (where the @{...}@ part depends on query parameters, see below).
 
 The declared return type can be one of the following:
 
 - (); the generated function will ignore any and all results from the query
   and always return ().
-- An integer scalar, e.g. 'Integer' or 'Int'; the generated function will
-  return a row count from @INSERT@ / @UPDATE@ / ... statements, or 0 from
-  @SELECT@ statements.
+- The keyword 'rowcount', followed by an integer scalar, e.g.
+  'Integer' or 'Int'; the generated function will return a row count from
+  @INSERT@ / @UPDATE@ / ... statements, or 0 from @SELECT@ statements.
 - A tuple, where all elements implement 'FromSql'; the function will return
-  the result set from a @SELECT@ query as a list of tuples, or an empty list
-  for other query types.
-- A "one-tuple", i.e., a type in parentheses. The return value will be a list
+  the result set from a @SELECT@ query as a 'Maybe' of such tuples, or always
+  'Nothing' for other query types. For example, @:: (String, Int)@ produces
+  a function whose type ends in @conn -> IO (Maybe (String, Int))@.
+- A scalar, i.e., just a type name. The return value will be a 'Maybe'
   of scalars, containing the values from the first (or only) column in
   the result set. Note that, unlike Haskell, YeshQL does distinguish between
   @Type@ and @(Type)@: the former is a scalar type, while the latter is a
-  one-tuple whose only element is of type @Type@.
+  one-tuple whose only element is of type @Type@. For example, @:: (Int)@
+  produces a function whose type ends in @... -> conn -> IO (Maybe Int))@.
+- A list of tuples, e.g. @[(String, Int)]@; the return value will be a list
+  of such tuples.
+- A list of scalars, e.g. @[Int]@. The return value will be a list of
+  scalars, i.e., @... -> conn -> IO [Int]@.
+
+Scalars can be written as "one-tuples", that is, @[Int]@ and @[(Int)]@ are
+equivalent.
+
 
 @
     -- :paramName :: Type
@@ -232,6 +242,10 @@ import System.FilePath (takeBaseName)
 import Data.Char (isAlpha, isAlphaNum)
 
 import Database.YeshQL.Parser
+
+headMay :: [a] -> Maybe a
+headMay [] = Nothing
+headMay (x:_) = Just x
 
 nthIdent :: Int -> String
 nthIdent i
@@ -429,10 +443,13 @@ pgQueryType query =
                     tupleT 0
                 else
                     case pqReturnType query of
-                        Left tn -> mkType tn
-                        Right [] -> tupleT 0
-                        Right (x:[]) -> appT listT $ mkType x
-                        Right xs -> appT listT $ foldl' appT (tupleT $ length xs) (map mkType xs)
+                        ReturnRowCount tn -> mkType tn
+                        ReturnTuple One [] -> tupleT 0
+                        ReturnTuple One (x:[]) -> appT [t|Maybe|] $ mkType x
+                        ReturnTuple One xs -> appT [t|Maybe|] $ foldl' appT (tupleT $ length xs) (map mkType xs)
+                        ReturnTuple Many [] -> tupleT 0
+                        ReturnTuple Many (x:[]) -> appT listT $ mkType x
+                        ReturnTuple Many xs -> appT listT $ foldl' appT (tupleT $ length xs) (map mkType xs)
 
 mkType :: ParsedType -> Q Type
 mkType (MaybeType n) = [t|Maybe $(conT . mkName $ n)|]
@@ -495,10 +512,10 @@ mkQueryBody query = do
 
         convert :: ExpQ
         convert = case pqReturnType query of
-                    Left tn -> varE 'fromInteger
-                    Right [] -> [|\_ -> ()|]
-                    Right (x:[]) -> [|map (fromSql . head)|]
-                    Right xs ->
+                    ReturnRowCount tn -> varE 'fromInteger
+                    ReturnTuple _ [] -> [|\_ -> ()|]
+                    ReturnTuple _ (x:[]) -> [|map (fromSql . head)|]
+                    ReturnTuple _ xs ->
                         let varNames = map nthIdent [0..pred (length xs)]
                         in [|map $(lamE
                                     -- \[a,b,c,...] ->
@@ -506,8 +523,12 @@ mkQueryBody query = do
                                     -- (fromSql a, fromSql b, fromSql c, ...)
                                     (tupE $ (map (\n -> appE (varE 'fromSql) (varE . mkName $ n)) varNames)))|]
         queryFunc = case pqReturnType query of
-                        Left _ -> [| \qstr params conn -> $convert <$> run conn qstr params |]
-                        Right _ -> [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
+                        ReturnRowCount _ ->
+                            [| \qstr params conn -> $convert <$> run conn qstr params |]
+                        ReturnTuple Many _ ->
+                            [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
+                        ReturnTuple One _ ->
+                            [| \qstr params conn -> fmap headMay $ $convert <$> quickQuery' conn qstr params |]
         rawQueryFunc = [| \qstr conn -> runRaw conn qstr |]
     if pqDDL query
         then

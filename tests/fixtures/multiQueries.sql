@@ -1,7 +1,7 @@
--- :: Integer
+-- :: rowcount Integer
 BLAH
 ;;;
--- name: multiQueriesNamed :: Integer
+-- name: multiQueriesNamed :: rowcount Integer
 PIZZA
 ;;;
 OLIVES

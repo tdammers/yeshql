@@ -5,6 +5,8 @@ module Database.YeshQL.Parser
 , parseQueriesN
 , ParsedQuery (..)
 , ParsedType (..)
+, ParsedReturnType (..)
+, OneOrMany (..)
 , pqTypeFor
 )
 where
@@ -21,6 +23,13 @@ import Data.Maybe (catMaybes, fromMaybe)
 data ParsedType = PlainType String | MaybeType String | AutoType
     deriving Show
 
+data OneOrMany = One | Many
+    deriving (Show, Eq, Enum, Ord)
+
+data ParsedReturnType = ReturnRowCount ParsedType
+                      | ReturnTuple OneOrMany [ParsedType]
+                      deriving (Show)
+
 data ParsedQuery =
     ParsedQuery
         { pqQueryName :: String
@@ -28,7 +37,7 @@ data ParsedQuery =
         , pqParamsRaw :: [(String, ParsedType)]
         , pqParamNames :: [String]
         , pqParamTypes :: Map String ParsedType
-        , pqReturnType :: Either ParsedType [ParsedType]
+        , pqReturnType :: ParsedReturnType
         , pqDocComment :: String
         , pqDDL :: Bool
         }
@@ -41,7 +50,7 @@ parsedQuery :: String
             -> String
             -> [(String, ParsedType)]
             -> [(String, ParsedType)]
-            -> Either ParsedType [ParsedType]
+            -> ParsedReturnType
             -> String
             -> Bool
             -> ParsedQuery
@@ -145,7 +154,7 @@ multiP = do
 queryP :: Parsec String () ParsedQuery
 queryP = do
     spaces
-    (qn, retType) <- option ("", Left (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
+    (qn, retType) <- option ("", ReturnRowCount (PlainType "Integer")) $ nameDeclP <|> namelessDeclP
     extraItems <- many (try annotationP <|> paramDeclP <|> commentP)
     items <- many (try itemP <|> try commentP)
     return $ parsedQuery
@@ -157,18 +166,18 @@ queryP = do
                 (extractDocComment (extraItems ++ items))
                 (extractIsDDL (extraItems ++ items))
 
-nameDeclP :: Parsec String () (String, Either ParsedType [ParsedType])
+nameDeclP :: Parsec String () (String, ParsedReturnType)
 nameDeclP = do
     try (whitespaceP >> string "--" >> whitespaceP >> string "name" >> whitespaceP >> char ':')
     whitespaceP
     qn <- identifierP
     whitespaceP
-    retType <- option (Left (PlainType "Integer")) (try (string "::" >> whitespaceP >> returnTypeP))
+    retType <- option (ReturnRowCount (PlainType "Integer")) (try (string "::" >> whitespaceP >> returnTypeP))
     whitespaceP
     newlineP
     return (qn, retType)
 
-namelessDeclP :: Parsec String () (String, Either ParsedType [ParsedType])
+namelessDeclP :: Parsec String () (String, ParsedReturnType)
 namelessDeclP = do
     try (whitespaceP >> string "--" >> whitespaceP >> string "::" >> whitespaceP)
     retType <- returnTypeP
@@ -183,18 +192,38 @@ identifierP =
         leadCharP = oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ "_"
         tailCharP = oneOf $ ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ "_"
 
-returnTypeP :: Parsec String () (Either ParsedType [ParsedType])
-returnTypeP = returnTypeMultiP <|> returnTypeSingleP
+returnTypeP :: Parsec String () ParsedReturnType
+returnTypeP = returnTypeRowcountP <|> returnTypeMultiP <|> returnTypeSingleP
 
-returnTypeSingleP :: Parsec String () (Either ParsedType [ParsedType])
-returnTypeSingleP = Left <$> typeP
+returnTypeRowcountP :: Parsec String () ParsedReturnType
+returnTypeRowcountP = do
+    try (string "rowcount")
+    whitespaceP
+    ReturnRowCount <$> typeP
 
-returnTypeMultiP :: Parsec String () (Either ParsedType [ParsedType])
+returnTypeMultiP :: Parsec String () ParsedReturnType
 returnTypeMultiP =
-    Right <$> between
+    ReturnTuple Many <$> between
+        (char '[' >> whitespaceP)
+        (char ']' >> whitespaceP)
+        returnTypeRowP
+
+returnTypeSingleP :: Parsec String () ParsedReturnType
+returnTypeSingleP =
+    ReturnTuple One <$> returnTypeRowP
+
+returnTypeRowP :: Parsec String () [ParsedType]
+returnTypeRowP =
+    returnTypeTupleP <|> 
+    fmap (:[]) typeP
+
+returnTypeTupleP :: Parsec String () [ParsedType]
+returnTypeTupleP =
+    between
         (char '(' >> whitespaceP)
         (char ')' >> whitespaceP)
         (sepBy (between whitespaceP whitespaceP typeP) (char ','))
+
 
 typeP :: Parsec String () ParsedType
 typeP = do
@@ -266,6 +295,11 @@ literalP = ParsedLiteral <$> many1 (noneOf ":';")
 whitespaceP :: Parsec String () ()
 whitespaceP = do
     many (oneOf " \t\r")
+    return ()
+
+whitespace1P :: Parsec String () ()
+whitespace1P = do
+    many1 (oneOf " \t\r")
     return ()
 
 ignore :: Parsec s u a -> Parsec s u ()

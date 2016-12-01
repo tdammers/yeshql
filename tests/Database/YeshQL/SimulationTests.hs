@@ -48,14 +48,14 @@ testParametrizedSelect = testCase "Parametrized SELECT" $ chatTest chatScript $ 
     actual <- [yesh|
         -- name:getUserByName :: (Integer, String)
         -- :username :: String
-        SELECT id, username FROM users WHERE username = :username|] "billy" conn
-    let expected :: [(Integer, String)]
-        expected = [(1, "billy")]
+        SELECT id, username FROM users WHERE username = :username LIMIT 1|] "billy" conn
+    let expected :: Maybe (Integer, String)
+        expected = Just (1, "billy")
     assertEqual "" expected actual
     where
         chatScript =
             [ ChatStep
-                { chatQuery = sameThrough trim "SELECT id, username FROM users WHERE username = ?"
+                { chatQuery = sameThrough trim "SELECT id, username FROM users WHERE username = ? LIMIT 1"
                 , chatParams = [exactly (toSql "billy")]
                 , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
                 , chatColumnNames = ["username"]
@@ -69,8 +69,8 @@ testSingleInsert = testCase "Single INSERT" $ chatTest chatScript $ \conn -> do
         -- name:createUser :: (Integer)
         -- :username :: String
         INSERT INTO users (username) VALUES (:username) RETURNING id|] "billy" conn
-    let expected :: [Integer]
-        expected = [23]
+    let expected :: Maybe Integer
+        expected = Just 23
     assertEqual "" expected actual
     where
         chatScript =
@@ -86,7 +86,7 @@ testSingleInsert = testCase "Single INSERT" $ chatTest chatScript $ \conn -> do
 testUpdateReturnRowCount :: TestTree
 testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScript $ \conn -> do
     actual <- [yesh|
-        -- name:renameUser :: Integer
+        -- name:renameUser :: rowcount Integer
         -- :oldName :: String
         -- :newName :: String
         UPDATE users SET username = :oldName WHERE username = :newName AND username <> :oldName|]
@@ -111,11 +111,11 @@ testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScrip
             ]
 
 [yesh|
-    -- name:findUser :: (Int)
+    -- name:findUser :: Int
     -- :username :: String
     SELECT id FROM users WHERE username = :username
     ;;;
-    -- name:setUserName :: Integer
+    -- name:setUserName :: rowcount Integer
     -- :userID :: Int
     -- :username :: String
     UPDATE users SET username = :username WHERE id = :userID
@@ -123,7 +123,7 @@ testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScrip
 
 testMultiQuery :: TestTree
 testMultiQuery = testCase "Define multiple queries in one QQ inside a where" $ chatTest chatScript $ \conn -> do
-    [userID] <- findUser "billy" conn
+    userID <- maybe (fail "User Not Found") return =<< findUser "billy" conn
     rowCount <- setUserName userID "tony" conn
     assertEqual "" rowCount 1
     where

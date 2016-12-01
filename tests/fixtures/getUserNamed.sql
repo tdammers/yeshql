@@ -1,3 +1,3 @@
--- name:getUser :: (Int, String)
+-- name:getUser :: [(Int, String)]
 -- :userID :: Int
 SELECT id, username FROM users WHERE id = :userID

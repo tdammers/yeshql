@@ -57,7 +57,7 @@ parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment is
         isDDL
 
 extractParamNames :: [(String, ParsedType)] -> [String]
-extractParamNames xs = 
+extractParamNames xs =
     nub . map fst $ xs
 
 extractParamTypeMap :: [(String, ParsedType)] -> Map String ParsedType
@@ -111,7 +111,7 @@ extractIsDDL items =
     not . null $ [ undefined | ParsedAnnotation DDLAnnotation <- items ]
 
 parseQueryN :: String -> String -> Either ParseError ParsedQuery
-parseQueryN fn src = 
+parseQueryN fn src =
     runParser mainP () fn src
 
 parseQuery :: String -> Either ParseError ParsedQuery

@@ -1,7 +1,9 @@
 name: yeshql
-version: 1.0.0.0
+version: 1.0.0.1
 synopsis: YesQL-style SQL database abstraction
-description:
+description: Use quasi-quotations to write SQL in SQL, while at the same time
+             adding type annotations to turn them into well-typed Haskell
+             functions.
 license: MIT
 license-file: LICENSE
 author: Tobias Dammers
@@ -35,4 +37,6 @@ test-suite tests
                  , HDBC
     hs-source-dirs: tests
     main-is: tests.hs
+    other-modules: Database.YeshQL.SimulationTests
+                 , Database.HDBC.Mock
     default-language: Haskell2010

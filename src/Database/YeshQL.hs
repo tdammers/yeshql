@@ -136,6 +136,25 @@ getUserEx conn id filename =
     -- ... generated implementation left out
 @
 
+On top of referencing parameters directly, you can also "drill down" with a
+projection function, using @.@ syntax similar to property access in, say,
+JavaScript. The intended use case is passing record types as arguments to
+the query function, and then dereferencing them inside the query, like so:
+
+@
+    -- name:updateUser :: rowcount Int
+    -- :user :: User
+    UPDATE users
+    SET username  = :user.name
+    WHERE id = :user.userID
+@
+
+Note that the part after the @.@ is a plain Haskell function that must be in
+scope wherever the query is spliced.
+
+Also note that projection functions can be chained, and are not limited to
+record field accessors.
+
 == Loading Queries From External Files
 
 The 'yeshFile' and 'yesh1File' flavors take a file name instead of SQL

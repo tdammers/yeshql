@@ -31,6 +31,8 @@ tests =
     [ testSimpleSelect
     , testParametrizedSelect
     , testSingleInsert
+    , testRecordReturn
+    , testRecordParams
     , testUpdateReturnRowCount
     , testMultiQuery
     , testQueryFromFile
@@ -81,9 +83,30 @@ testRecordReturn = testCase "Return record from SELECT" $ chatTest chatScript $ 
     actual <- [yesh|
         -- name:getUserByName :: User
         -- :username :: String
-        SELECT id, username FROM users
-        WHERE username = :username LIMIT 1|]
+        SELECT id, username FROM users WHERE username = :username LIMIT 1|]
         "billy"
+        conn
+    let expected :: Maybe User
+        expected = Just $ User 1 "billy"
+    assertEqual "" expected actual
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim "SELECT id, username FROM users WHERE username = ? LIMIT 1"
+                , chatParams = [exactly (toSql "billy")]
+                , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
+                , chatColumnNames = ["username"]
+                , chatRowsAffected = 0
+                }
+            ]
+
+testRecordParams :: TestTree
+testRecordParams = testCase "Pass records as params" $ chatTest chatScript $ \conn -> do
+    actual <- [yesh|
+        -- name:getUserByName :: User
+        -- :user :: User
+        SELECT id, username FROM users WHERE username = :user.userName.reverse LIMIT 1|]
+        (User 10 "yllib")
         conn
     let expected :: Maybe User
         expected = Just $ User 1 "billy"

@@ -6,6 +6,7 @@ module Database.YeshQL.Parser
 , ParsedQuery (..)
 , ParsedType (..)
 , ParsedReturnType (..)
+, ExtractedParam (..)
 , OneOrMany (..)
 , pqTypeFor
 )
@@ -20,7 +21,9 @@ import Data.Map (Map)
 import Data.List (foldl', nub)
 import Data.Maybe (catMaybes, fromMaybe)
 
-data ParsedType = PlainType String | MaybeType String | AutoType
+data ParsedType = PlainType String
+                | MaybeType String
+                | AutoType
     deriving Show
 
 data OneOrMany = One | Many
@@ -31,11 +34,19 @@ data ParsedReturnType = ReturnRowCount ParsedType
                       | ReturnRecord OneOrMany ParsedType
                       deriving (Show)
 
+data ExtractedParam =
+    ExtractedParam
+        { paramName :: String
+        , paramProjections :: [String]
+        , paramType :: ParsedType
+        }
+        deriving (Show)
+
 data ParsedQuery =
     ParsedQuery
         { pqQueryName :: String
         , pqQueryString :: String
-        , pqParamsRaw :: [(String, ParsedType)]
+        , pqParamsRaw :: [ExtractedParam]
         , pqParamNames :: [String]
         , pqParamTypes :: Map String ParsedType
         , pqReturnType :: ParsedReturnType
@@ -49,13 +60,19 @@ pqTypeFor q pname = Map.lookup pname (pqParamTypes q)
 
 parsedQuery :: String
             -> String
-            -> [(String, ParsedType)]
-            -> [(String, ParsedType)]
+            -> [ExtractedParam]
+            -> [ExtractedParam]
             -> ParsedReturnType
             -> String
             -> Bool
             -> ParsedQuery
-parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment isDDL =
+parsedQuery queryName
+            queryString
+            paramsRaw
+            paramsExtra
+            returnType
+            docComment
+            isDDL =
     ParsedQuery
         queryName
         queryString
@@ -66,15 +83,15 @@ parsedQuery queryName queryString paramsRaw paramsExtra returnType docComment is
         docComment
         isDDL
 
-extractParamNames :: [(String, ParsedType)] -> [String]
+extractParamNames :: [ExtractedParam] -> [String]
 extractParamNames xs =
-    nub . map fst $ xs
+    nub . map paramName $ xs
 
-extractParamTypeMap :: [(String, ParsedType)] -> Map String ParsedType
+extractParamTypeMap :: [ExtractedParam] -> Map String ParsedType
 extractParamTypeMap = foldl' applyItem Map.empty
     where
-        applyItem :: Map String ParsedType -> (String, ParsedType) -> Map String ParsedType
-        applyItem m (n, t) =
+        applyItem :: Map String ParsedType -> ExtractedParam -> Map String ParsedType
+        applyItem m (ExtractedParam n _ t) =
             let tc = Map.lookup n m
             in case (tc, t) of
                 (Nothing, AutoType) -> m
@@ -86,6 +103,7 @@ extractParamTypeMap = foldl' applyItem Map.empty
 
 data ParsedItem = ParsedLiteral String
                 | ParsedParam String ParsedType
+                | ParsedParamAttrib String [String] ParsedType
                 | ParsedComment String
                 | ParsedAnnotation Annotation
                 deriving (Show)
@@ -101,12 +119,14 @@ extractParsedQuery = concat . map extractItem
         extractItem (ParsedLiteral str) = str
         extractItem (ParsedComment _) = ""
         extractItem (ParsedParam _ _) = "?"
+        extractItem (ParsedParamAttrib _ _ _) = "?"
 
-extractParsedParams :: [ParsedItem] -> [(String, ParsedType)]
+extractParsedParams :: [ParsedItem] -> [ExtractedParam]
 extractParsedParams = catMaybes . map extractItem
     where
-        extractItem :: ParsedItem -> Maybe (String, ParsedType)
-        extractItem (ParsedParam n t) = Just (n, t)
+        extractItem :: ParsedItem -> Maybe ExtractedParam
+        extractItem (ParsedParam n t) = Just $ ExtractedParam n [] t
+        extractItem (ParsedParamAttrib n p t) = Just $ ExtractedParam n p t
         extractItem _ = Nothing
 
 extractDocComment :: [ParsedItem] -> String
@@ -266,12 +286,12 @@ paramDeclP = do
     whitespaceP
     t <- option AutoType $ do
             string "::"
-            whitespaceP
-            t <- typeP
-            whitespaceP
-            return t
+            whitespaceP *> typeP <* whitespaceP
     newlineP
     return $ ParsedParam name t
+
+projectionP :: Parsec String () String
+projectionP = char '.' *> identifierP
 
 commentP :: Parsec String () ParsedItem
 commentP = do
@@ -283,10 +303,13 @@ paramP :: Parsec String () ParsedItem
 paramP = do
     char ':'
     pname <- identifierP
+    projections <- many projectionP
     ptype <- option AutoType $ do
                 string "::"
                 typeP
-    return $ ParsedParam pname ptype
+    if null projections
+        then return $ ParsedParam pname ptype
+        else return $ ParsedParamAttrib pname projections ptype
 
 quotedP :: Parsec String () ParsedItem
 quotedP = do

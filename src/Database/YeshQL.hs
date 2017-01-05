@@ -544,5 +544,11 @@ mkQueryBody query = do
         else
             queryFunc
                 `appE` (litE . stringL . pqQueryString $ query)
-                `appE` (listE [ appE (varE 'toSql) (varE . mkName $ n) | (n, t) <- (pqParamsRaw query) ])
+                `appE` (listE (map paramArg $ pqParamsRaw query))
                 `appE` (varE . mkName $ "conn")
+
+    where
+        paramArg :: ExtractedParam -> ExpQ
+        paramArg (ExtractedParam n ps _) = do
+            let valE = foldl1 (flip appE) (map (varE . mkName) (n:ps))
+            varE 'toSql `appE` valE

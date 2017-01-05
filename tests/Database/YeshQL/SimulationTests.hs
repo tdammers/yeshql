@@ -1,5 +1,6 @@
 {-#LANGUAGE QuasiQuotes #-}
 {-#LANGUAGE RankNTypes #-}
+{-#LANGUAGE LambdaCase #-}
 module Database.YeshQL.SimulationTests
 ( tests
 )
@@ -10,6 +11,7 @@ import Test.Tasty.HUnit
 import Database.HDBC
 import Database.HDBC.Mock
 import Database.YeshQL
+import Database.YeshQL.SqlEntity
 import System.IO
 import Data.Char
 import Data.List (dropWhile, dropWhileEnd)
@@ -63,6 +65,43 @@ testParametrizedSelect = testCase "Parametrized SELECT" $ chatTest chatScript $ 
                 }
             ]
 
+data User =
+    User
+        { userID :: Int
+        , userName :: String
+        }
+        deriving (Show, Eq)
+
+instance SqlEntity User where
+    fromSqlRow = \case
+        [ sqlID, sqlName ] ->
+            return $ User (fromSql sqlID) (fromSql sqlName)
+        _ -> fail "Not a user"
+    toSqlRow (User id name) =
+        [ toSql id, toSql name ]
+
+testRecordReturn :: TestTree
+testRecordReturn = testCase "Return record from SELECT" $ chatTest chatScript $ \conn -> do
+    actual <- [yesh|
+        -- name:getUserByName :: User
+        -- :username :: String
+        SELECT id, username FROM users
+        WHERE username = :username LIMIT 1|]
+        "billy"
+        conn
+    let expected :: Maybe User
+        expected = Just $ User 1 "billy"
+    assertEqual "" expected actual
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim "SELECT id, username FROM users WHERE username = ? LIMIT 1"
+                , chatParams = [exactly (toSql "billy")]
+                , chatResultSet = [[toSql (1 :: Int), toSql "billy"]]
+                , chatColumnNames = ["username"]
+                , chatRowsAffected = 0
+                }
+            ]
 testSingleInsert :: TestTree
 testSingleInsert = testCase "Single INSERT" $ chatTest chatScript $ \conn -> do
     actual <- [yesh|
@@ -111,7 +150,7 @@ testUpdateReturnRowCount = testCase "UPDATE, get row count" $ chatTest chatScrip
             ]
 
 [yesh|
-    -- name:findUser :: Int
+    -- name:findUser :: (Int)
     -- :username :: String
     SELECT id FROM users WHERE username = :username
     ;;;

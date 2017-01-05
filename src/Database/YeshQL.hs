@@ -242,6 +242,7 @@ import System.FilePath (takeBaseName)
 import Data.Char (isAlpha, isAlphaNum)
 
 import Database.YeshQL.Parser
+import Database.YeshQL.SqlEntity
 
 headMay :: [a] -> Maybe a
 headMay [] = Nothing
@@ -450,6 +451,8 @@ pgQueryType query =
                         ReturnTuple Many [] -> tupleT 0
                         ReturnTuple Many (x:[]) -> appT listT $ mkType x
                         ReturnTuple Many xs -> appT listT $ foldl' appT (tupleT $ length xs) (map mkType xs)
+                        ReturnRecord One x -> appT [t|Maybe|] $ mkType x
+                        ReturnRecord Many x -> appT listT $ mkType x
 
 mkType :: ParsedType -> Q Type
 mkType (MaybeType n) = [t|Maybe $(conT . mkName $ n)|]
@@ -522,6 +525,7 @@ mkQueryBody query = do
                                     [(listP (map (varP . mkName) varNames))]
                                     -- (fromSql a, fromSql b, fromSql c, ...)
                                     (tupE $ (map (\n -> appE (varE 'fromSql) (varE . mkName $ n)) varNames)))|]
+                    ReturnRecord _ x -> [|fromSqlRow|]
         queryFunc = case pqReturnType query of
                         ReturnRowCount _ ->
                             [| \qstr params conn -> $convert <$> run conn qstr params |]
@@ -529,6 +533,10 @@ mkQueryBody query = do
                             [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
                         ReturnTuple One _ ->
                             [| \qstr params conn -> fmap headMay $ $convert <$> quickQuery' conn qstr params |]
+                        ReturnRecord Many _ ->
+                            [| \qstr params conn -> mapM $convert =<< quickQuery' conn qstr params |]
+                        ReturnRecord One _ ->
+                            [| \qstr params conn -> fmap headMay $ mapM $convert =<< quickQuery' conn qstr params |]
         rawQueryFunc = [| \qstr conn -> runRaw conn qstr |]
     if pqDDL query
         then

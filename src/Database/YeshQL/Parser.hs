@@ -28,6 +28,7 @@ data OneOrMany = One | Many
 
 data ParsedReturnType = ReturnRowCount ParsedType
                       | ReturnTuple OneOrMany [ParsedType]
+                      | ReturnRecord OneOrMany ParsedType
                       deriving (Show)
 
 data ParsedQuery =
@@ -201,21 +202,26 @@ returnTypeRowcountP = do
     whitespaceP
     ReturnRowCount <$> typeP
 
+setNumerus :: OneOrMany -> ParsedReturnType -> ParsedReturnType
+setNumerus _ (ReturnRowCount t) = ReturnRowCount t
+setNumerus numerus (ReturnTuple _ x) = ReturnTuple numerus x
+setNumerus numerus (ReturnRecord _ x) = ReturnRecord numerus x
+
 returnTypeMultiP :: Parsec String () ParsedReturnType
 returnTypeMultiP =
-    ReturnTuple Many <$> between
+    setNumerus Many <$> between
         (char '[' >> whitespaceP)
         (char ']' >> whitespaceP)
         returnTypeRowP
 
 returnTypeSingleP :: Parsec String () ParsedReturnType
 returnTypeSingleP =
-    ReturnTuple One <$> returnTypeRowP
+    setNumerus One <$> returnTypeRowP
 
-returnTypeRowP :: Parsec String () [ParsedType]
+returnTypeRowP :: Parsec String () ParsedReturnType
 returnTypeRowP =
-    returnTypeTupleP <|> 
-    fmap (:[]) typeP
+    fmap (ReturnTuple One) returnTypeTupleP <|> 
+    fmap (ReturnRecord One) typeP
 
 returnTypeTupleP :: Parsec String () [ParsedType]
 returnTypeTupleP =

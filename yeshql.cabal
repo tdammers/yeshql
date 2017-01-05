@@ -17,6 +17,7 @@ cabal-version: >=1.10
 library
     exposed-modules: Database.YeshQL
                    , Database.YeshQL.SqlRow.Class
+                   , Database.YeshQL.SqlRow.TH
     other-modules: Database.YeshQL.Parser
     -- other-extensions:
     build-depends: base >=4.6 && <5.0
@@ -24,6 +25,7 @@ library
                  , containers >= 0.5 && < 1.0
                  , filepath
                  , parsec >= 3.0 && <4.0
+                 , syb-with-class >= 0.6.1.7 && <1
                  , template-haskell
                  , convertible >= 1.1.1.0 && <2
     hs-source-dirs: src

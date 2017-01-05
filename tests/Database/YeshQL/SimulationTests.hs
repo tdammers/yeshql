@@ -1,6 +1,7 @@
 {-#LANGUAGE QuasiQuotes #-}
 {-#LANGUAGE RankNTypes #-}
 {-#LANGUAGE LambdaCase #-}
+{-#LANGUAGE TemplateHaskell #-}
 module Database.YeshQL.SimulationTests
 ( tests
 )
@@ -12,9 +13,19 @@ import Database.HDBC
 import Database.HDBC.Mock
 import Database.YeshQL
 import Database.YeshQL.SqlRow.Class
+import Database.YeshQL.SqlRow.TH
 import System.IO
 import Data.Char
 import Data.List (dropWhile, dropWhileEnd)
+
+data User =
+    User
+        { userID :: Int
+        , userName :: String
+        }
+        deriving (Show, Eq)
+
+makeSqlRow ''User
 
 tests =
     [ testSimpleSelect
@@ -65,23 +76,6 @@ testParametrizedSelect = testCase "Parametrized SELECT" $ chatTest chatScript $ 
                 }
             ]
 
-data User =
-    User
-        { userID :: Int
-        , userName :: String
-        }
-        deriving (Show, Eq)
-
-instance FromSqlRow User where
-    fromSqlRow = \case
-        [ sqlID, sqlName ] ->
-            return $ User (fromSql sqlID) (fromSql sqlName)
-        _ -> fail "Not a user"
-
-instance ToSqlRow User where
-    toSqlRow (User id name) =
-        [ toSql id, toSql name ]
-
 testRecordReturn :: TestTree
 testRecordReturn = testCase "Return record from SELECT" $ chatTest chatScript $ \conn -> do
     actual <- [yesh|
@@ -104,6 +98,7 @@ testRecordReturn = testCase "Return record from SELECT" $ chatTest chatScript $ 
                 , chatRowsAffected = 0
                 }
             ]
+
 testSingleInsert :: TestTree
 testSingleInsert = testCase "Single INSERT" $ chatTest chatScript $ \conn -> do
     actual <- [yesh|

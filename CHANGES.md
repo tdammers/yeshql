@@ -1,5 +1,9 @@
 # Changes / Release Notes
 
+## 2.1.0.0
+
+- Added TH derivation for `SqlRow` typeclasses.
+
 ## 2.0.0.0
 
 - Added typed full-row results, using the new `FromSqlRow` typeclass

@@ -54,7 +54,7 @@ Here's what a typical YeshQL definition looks like:
     -- :name :: String
     INSERT INTO users (name) VALUES (:name) RETURNING id
     ;;;
-    -- name:deleteUser :: Integer
+    -- name:deleteUser :: rowcount Integer
     -- :id :: Integer
     DELETE FROM users WHERE id = :id
     ;;;
@@ -98,21 +98,19 @@ The declared return type can be one of the following:
 - A tuple, where all elements implement 'FromSql'; the function will return
   the result set from a @SELECT@ query as a 'Maybe' of such tuples, or always
   'Nothing' for other query types. For example, @:: (String, Int)@ produces
-  a function whose type ends in @conn -> IO (Maybe (String, Int))@.
-- A scalar, i.e., just a type name. The return value will be a 'Maybe'
-  of scalars, containing the values from the first (or only) column in
-  the result set. Note that, unlike Haskell, YeshQL does distinguish between
-  @Type@ and @(Type)@: the former is a scalar type, while the latter is a
-  one-tuple whose only element is of type @Type@. For example, @:: (Int)@
-  produces a function whose type ends in @... -> conn -> IO (Maybe Int))@.
-- A list of tuples, e.g. @[(String, Int)]@; the return value will be a list
-  of such tuples.
-- A list of scalars, e.g. @[Int]@. The return value will be a list of
-  scalars, i.e., @... -> conn -> IO [Int]@.
+  a function whose type ends in @conn -> IO (Maybe (String, Int))@. Null-tuples
+  are marshalled to '()', ignoring result sets; one-tuples (written as @(a)@)
+  are marshalled to scalars.
+- A naked type, i.e., just a type name, without parentheses. The type must
+  implement 'SqlEntity'; the return type will be a 'Maybe' of that type. E.g.,
+  @(:: User)@ will produce a function signature ending in
+  @conn -> IO (Maybe User)@.
+- A list of tuples or naked types, written using square brackets (@[@ ... @]@),
+  returning a list of mapped rows instead of a 'Maybe'.
 
-Scalars can be written as "one-tuples", that is, @[Int]@ and @[(Int)]@ are
-equivalent.
-
+Note that, unlike Haskell, YeshQL distinguishes @(Foo)@ from @Foo@: the former
+takes the first column from a result row and maps it using 'FromSql', while the
+latter takes the entire result row and maps it using 'FromSqlRow'.
 
 @
     -- :paramName :: Type
@@ -190,7 +188,7 @@ So for example, this quasiquotation:
 
 @
 [yesh1|
-    -- name:getUser :: (Integer, String)
+    -- name:getUser :: User
     -- :userID :: Integer
     -- Gets one user by the "id" column.
     SELECT id, username FROM users WHERE id = :userID LIMIT 1 |]
@@ -199,7 +197,7 @@ So for example, this quasiquotation:
 ...would produce the following three top-level definitions:
 
 @
-getUser :: IConnection conn => Integer -> conn -> [(Integer, String)]
+getUser :: IConnection conn => Integer -> conn -> IO (Maybe User)
 getUser userID conn = ...
 
 describeGetUser :: String

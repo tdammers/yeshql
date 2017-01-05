@@ -16,7 +16,7 @@ cabal-version: >=1.10
 
 library
     exposed-modules: Database.YeshQL
-                   , Database.YeshQL.SqlEntity
+                   , Database.YeshQL.SqlRow.Class
     other-modules: Database.YeshQL.Parser
     -- other-extensions:
     build-depends: base >=4.6 && <5.0

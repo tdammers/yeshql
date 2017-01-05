@@ -102,7 +102,7 @@ The declared return type can be one of the following:
   are marshalled to '()', ignoring result sets; one-tuples (written as @(a)@)
   are marshalled to scalars.
 - A naked type, i.e., just a type name, without parentheses. The type must
-  implement 'SqlEntity'; the return type will be a 'Maybe' of that type. E.g.,
+  implement 'FromSqlRow'; the return type will be a 'Maybe' of that type. E.g.,
   @(:: User)@ will produce a function signature ending in
   @conn -> IO (Maybe User)@.
 - A list of tuples or naked types, written using square brackets (@[@ ... @]@),
@@ -240,7 +240,7 @@ import System.FilePath (takeBaseName)
 import Data.Char (isAlpha, isAlphaNum)
 
 import Database.YeshQL.Parser
-import Database.YeshQL.SqlEntity
+import Database.YeshQL.SqlRow.Class
 
 headMay :: [a] -> Maybe a
 headMay [] = Nothing

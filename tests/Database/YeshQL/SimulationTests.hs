@@ -11,7 +11,7 @@ import Test.Tasty.HUnit
 import Database.HDBC
 import Database.HDBC.Mock
 import Database.YeshQL
-import Database.YeshQL.SqlEntity
+import Database.YeshQL.SqlRow.Class
 import System.IO
 import Data.Char
 import Data.List (dropWhile, dropWhileEnd)
@@ -72,11 +72,13 @@ data User =
         }
         deriving (Show, Eq)
 
-instance SqlEntity User where
+instance FromSqlRow User where
     fromSqlRow = \case
         [ sqlID, sqlName ] ->
             return $ User (fromSql sqlID) (fromSql sqlName)
         _ -> fail "Not a user"
+
+instance ToSqlRow User where
     toSqlRow (User id name) =
         [ toSql id, toSql name ]
 

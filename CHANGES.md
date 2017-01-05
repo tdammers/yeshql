@@ -1,5 +1,10 @@
 # Changes / Release Notes
 
+## 2.2.0.0
+
+- Added the ability to "drill down" into parameters using projection
+  functions. E.g. `:user.username`.
+
 ## 2.1.0.0
 
 - Added TH derivation for `SqlRow` typeclasses.

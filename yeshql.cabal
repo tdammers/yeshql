@@ -1,5 +1,5 @@
 name: yeshql
-version: 1.0.0.1
+version: 2.0.0.0
 synopsis: YesQL-style SQL database abstraction
 description: Use quasi-quotations to write SQL in SQL, while at the same time
              adding type annotations to turn them into well-typed Haskell

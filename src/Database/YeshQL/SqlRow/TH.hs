@@ -29,11 +29,17 @@ makeSqlRow entityName = do
                 $(listE $ map (toSqlRowField 'entity) fieldNames)
 
         instance FromSqlRow $(conT typeName) where
-            fromSqlRow = \case
-                $(listP $ map fromSqlPatternItem fieldNames) ->
-                    return $
-                        $(foldl1 appE $
+            parseSqlRow = \case
+                $(foldr
+                    (\x xs -> infixP x '(:) xs)
+                    (varP $ mkName "remaining")
+                    (map fromSqlPatternItem fieldNames)
+                 ) ->
+                    return
+                        ( $(foldl1 appE $
                             conE constructorName : map fromSqlPatternArg fieldNames)
+                        , remaining
+                        )
                 _ -> fail $ "Invalid SQL for " ++ $(litE . stringL . nameBase $ typeName) |]
     where
         toSqlRowField :: Name -> Name -> ExpQ

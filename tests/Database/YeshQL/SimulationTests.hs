@@ -29,6 +29,7 @@ makeSqlRow ''User
 
 tests =
     [ testSimpleSelect
+    , testSimpleSelectStr
     , testParametrizedSelect
     , testSingleInsert
     , testRecordReturn
@@ -46,6 +47,24 @@ testSimpleSelect = testCase "Simple SELECT" $ chatTest chatScript $ \conn -> do
     results <- [yesh|
         -- name:getUserByName :: (String)
         SELECT username FROM users|] conn
+    return ()
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim "SELECT username FROM users"
+                , chatParams = []
+                , chatResultSet = []
+                , chatColumnNames = ["username"]
+                , chatRowsAffected = 0
+                }
+            ]
+
+testSimpleSelectStr :: TestTree
+testSimpleSelectStr = testCase "Simple SELECT (expr by string)" $ chatTest chatScript $ \conn -> do
+    results <- $(yesh $ unlines
+        [ "-- name:getUserByName :: (String)"
+        , "SELECT username FROM users"
+        ]) conn
     return ()
     where
         chatScript =

@@ -1,6 +1,7 @@
 {-#LANGUAGE TemplateHaskell #-}
 {-#LANGUAGE CPP #-}
 {-#LANGUAGE RankNTypes #-}
+{-#LANGUAGE FlexibleInstances #-}
 {-|
 Module: Database.YeshQL
 Description: Turn SQL queries into type-safe functions.
@@ -16,11 +17,12 @@ functions.
 
 = Usage
 
-The main workhorses are the 'yesh1' (to define one query) and 'yesh' (to define
-multiple queries) quasi-quoters.
+The main workhorses are 'yesh1' (to define one query) and 'yesh' (to define
+multiple queries).
 
-Both 'yesh' and 'yesh1' can produce either declarations or expressions,
-depending on the context in which they are used.
+Both 'yesh' and 'yesh1' can be used as TemplateHaskell functions directly, or
+as quasi-quoters, and they can generate declarations or expressions depending
+on the context in which they are used.
 
 == Creating Declarations
 
@@ -39,6 +41,16 @@ given in the query definition. Example:
 
 @
     insertUser :: IConnection conn => conn -> String -> IO (Maybe Integer)
+@
+
+Using plain TH, it can also be written as:
+
+@
+yesh1 $ unlines
+    [ "-- name:insertUser :: (Integer)"
+    , "-- :name :: String"
+    , "INSERT INTO users (name) VALUES (:name) RETURNING id"
+    ]
 @
 
 == Syntax
@@ -271,88 +283,110 @@ nthIdent i
     | otherwise = let (j, k) = divMod i 26
                     in nthIdent j ++ nthIdent k
 
--- | Generate a top-level declaration or an expression for a single SQL query.
--- If used at the top level (i.e., generating a declaration), the query
--- definition must specify a query name.
-yesh1 :: QuasiQuoter
-yesh1 = QuasiQuoter
-        { quoteDec = withParsedQuery mkQueryDecs
-        , quoteExp = withParsedQuery mkQueryExp
-        , quoteType = error "yesh1 does not generate types"
-        , quotePat = error "yesh1 does not generate patterns"
-        }
+class Yesh a where
+    -- | Generate a top-level declaration or an expression for a single SQL query.
+    -- If used at the top level (i.e., generating a declaration), the query
+    -- definition must specify a query name.
+    yesh1 :: a
 
--- | Generate top-level declarations or expressions for several SQL queries.
--- If used at the top level (i.e., generating declarations), all queries in the
--- definitions must be named, and 'yesh' will generate a separate set of
--- functions for each.
--- If used in an expression context, the current behavior is somewhat
--- undesirable, namely sequencing the queries using '>>'.
---
--- Future versions will most likely change this to create a tuple of query
--- expressions instead, such that you can write something like:
---
--- @
--- let (createUser, getUser, updateUser, deleteUser) = [yesh|
---      -- name:createUser :: (Integer)
---      -- :username :: String
---      INSERT INTO users (username) VALUES (:username) RETURNING id;
---      -- name:getUser :: (Integer, String)
---      -- :userID :: Integer
---      SELECT id, username FROM users WHERE id = :userID;
---      -- name:updateUser :: Integer
---      -- :userID :: Integer
---      -- :username :: String
---      UPDATE users SET username = :username WHERE id = :userID;
---      -- name:deleteUser :: Integer
---      -- :userID :: Integer
---      DELETE FROM users WHERE id = :userID LIMIT 1;
---  |]
--- @
-yesh :: QuasiQuoter
-yesh = QuasiQuoter
-        { quoteDec = withParsedQueries mkQueryDecsMulti
-        , quoteExp = withParsedQueries mkQueryExpMulti
-        , quoteType = error "yesh does not generate types"
-        , quotePat = error "yesh does not generate patterns"
-        }
+    -- | Generate top-level declarations or expressions for several SQL queries.
+    -- If used at the top level (i.e., generating declarations), all queries in the
+    -- definitions must be named, and 'yesh' will generate a separate set of
+    -- functions for each.
+    -- If used in an expression context, the current behavior is somewhat
+    -- undesirable, namely sequencing the queries using '>>'.
+    --
+    -- Future versions will most likely change this to create a tuple of query
+    -- expressions instead, such that you can write something like:
+    --
+    -- @
+    -- let (createUser, getUser, updateUser, deleteUser) = [yesh|
+    --      -- name:createUser :: (Integer)
+    --      -- :username :: String
+    --      INSERT INTO users (username) VALUES (:username) RETURNING id;
+    --      -- name:getUser :: (Integer, String)
+    --      -- :userID :: Integer
+    --      SELECT id, username FROM users WHERE id = :userID;
+    --      -- name:updateUser :: Integer
+    --      -- :userID :: Integer
+    --      -- :username :: String
+    --      UPDATE users SET username = :username WHERE id = :userID;
+    --      -- name:deleteUser :: Integer
+    --      -- :userID :: Integer
+    --      DELETE FROM users WHERE id = :userID LIMIT 1;
+    --  |]
+    -- @
+    yesh :: a
 
--- | Generate one query definition or expression from an external file.
--- In a declaration context, the query name will be derived from the filename
--- unless the query contains an explicit name. Query name derivation works as
--- follows:
---
--- - Take only the basename (stripping off the directories and extension)
--- - Remove all non-alphabetic characters from the beginning of the name
--- - Remove all non-alphanumeric characters from the name
--- - Lower-case the first character.
---
--- Note that since there is always a filename to derive the query name from,
--- explicitly defining a query name is only necessary when you want it to
--- differ from the filename; however, making it explicit anyway is probably a
--- good idea.
-yesh1File :: QuasiQuoter
-yesh1File = QuasiQuoter
-            { quoteDec = withParsedQueryFile mkQueryDecs
-            , quoteExp = withParsedQueryFile mkQueryExp
-            , quoteType = error "yesh1File does not generate types"
-            , quotePat = error "yesh1File does not generate patterns"
+class YeshFile a where
+    -- | Generate one query definition or expression from an external file.
+    -- In a declaration context, the query name will be derived from the filename
+    -- unless the query contains an explicit name. Query name derivation works as
+    -- follows:
+    --
+    -- - Take only the basename (stripping off the directories and extension)
+    -- - Remove all non-alphabetic characters from the beginning of the name
+    -- - Remove all non-alphanumeric characters from the name
+    -- - Lower-case the first character.
+    --
+    -- Note that since there is always a filename to derive the query name from,
+    -- explicitly defining a query name is only necessary when you want it to
+    -- differ from the filename; however, making it explicit anyway is probably a
+    -- good idea.
+    yesh1File :: a
+
+    -- | Generate multiple query definitions or expressions from an external file.
+    -- Query name derivation works exactly like for 'yesh1File', except that an
+    -- underscore and a 0-based query index are appended to disambiguate queries
+    -- from the same file.
+    --
+    -- In an expression context, the same caveats apply as for 'yesh', i.e., to
+    -- generate expressions, you will almost certainly want 'yesh1File', not
+    -- 'yeshFile'.
+    yeshFile :: a
+
+instance Yesh (String -> Q [Dec]) where
+    yesh1 = withParsedQuery mkQueryDecs
+    yesh = withParsedQueries mkQueryDecsMulti
+
+instance YeshFile (FilePath -> Q [Dec]) where
+    yesh1File = withParsedQueryFile mkQueryDecs
+    yeshFile = withParsedQueriesFile mkQueryDecsMulti
+
+instance Yesh (String -> Q Exp) where
+    yesh1 = withParsedQuery mkQueryExp
+    yesh = withParsedQueries mkQueryExpMulti
+
+instance YeshFile (FilePath -> Q Exp) where
+    yesh1File = withParsedQueryFile mkQueryExp
+    yeshFile = withParsedQueriesFile mkQueryExpMulti
+
+instance Yesh QuasiQuoter where
+    yesh = QuasiQuoter
+            { quoteDec = yesh
+            , quoteExp = yesh
+            , quoteType = error "YeshQL does not generate types"
+            , quotePat = error "YeshQL does not generate patterns"
+            }
+    yesh1 = QuasiQuoter
+            { quoteDec = yesh1
+            , quoteExp = yesh1
+            , quoteType = error "YeshQL does not generate types"
+            , quotePat = error "YeshQL does not generate patterns"
             }
 
--- | Generate multiple query definitions or expressions from an external file.
--- Query name derivation works exactly like for 'yesh1File', except that an
--- underscore and a 0-based query index are appended to disambiguate queries
--- from the same file.
---
--- In an expression context, the same caveats apply as for 'yesh', i.e., to
--- generate expressions, you will almost certainly want 'yesh1File', not
--- 'yeshFile'.
-yeshFile :: QuasiQuoter
-yeshFile = QuasiQuoter
-            { quoteDec = withParsedQueriesFile mkQueryDecsMulti
-            , quoteExp = withParsedQueriesFile mkQueryExpMulti
-            , quoteType = error "yeshFile does not generate types"
-            , quotePat = error "yeshFile does not generate patterns"
+instance YeshFile QuasiQuoter where
+    yeshFile = QuasiQuoter
+            { quoteDec = yeshFile
+            , quoteExp = yeshFile
+            , quoteType = error "YeshFileQL does not generate types"
+            , quotePat = error "YeshFileQL does not generate patterns"
+            }
+    yesh1File = QuasiQuoter
+            { quoteDec = yesh1File
+            , quoteExp = yesh1File
+            , quoteType = error "YeshFileQL does not generate types"
+            , quotePat = error "YeshFileQL does not generate patterns"
             }
 
 queryName :: String -> String -> Name

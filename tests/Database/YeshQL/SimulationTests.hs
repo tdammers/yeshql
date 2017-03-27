@@ -24,8 +24,28 @@ data User =
         , userName :: String
         }
         deriving (Show, Eq)
-
 makeSqlRow ''User
+
+data Person =
+    Person
+        { personName :: String
+        , personEmail :: String
+        }
+        deriving (Show, Eq)
+makeSqlRow ''Person
+
+data UserData =
+    UserData
+        { user :: User
+        , person :: Person
+        }
+        deriving (Show, Eq)
+
+instance ToSqlRow UserData where
+    toSqlRow d = (toSqlRow . user $ d) ++ (toSqlRow . person $ d)
+
+instance FromSqlRow UserData where
+    parseSqlRow = UserData <$> parseSqlRow <*> parseSqlRow
 
 tests =
     [ testSimpleSelect
@@ -33,6 +53,7 @@ tests =
     , testParametrizedSelect
     , testSingleInsert
     , testRecordReturn
+    , testRecordReturnComplex
     , testRecordReturnExcessive
     , testRecordParams
     , testUpdateReturnRowCount
@@ -120,6 +141,35 @@ testRecordReturn = testCase "Return record from SELECT" $ chatTest chatScript $ 
                 }
             ]
 
+testRecordReturnComplex :: TestTree
+testRecordReturnComplex = testCase "Return record from SELECT" $ chatTest chatScript $ \conn -> do
+    actual <- [yesh|
+        -- name:getUserByName :: UserData
+        -- :username :: String
+        SELECT id, username, person_name, email FROM users WHERE username = :username LIMIT 1|]
+        "billy"
+        conn
+    let expected :: Maybe UserData
+        expected = Just $ UserData (User 1 "billy") (Person "Billy" "billy@example.org")
+    assertEqual "" expected actual
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim "SELECT id, username, person_name, email FROM users WHERE username = ? LIMIT 1"
+                , chatParams = [exactly (toSql "billy")]
+                , chatResultSet =
+                    [
+                        [ toSql (1 :: Int)
+                        , toSql "billy"
+                        , toSql "Billy"
+                        , toSql "billy@example.org"
+                        ]
+                    ]
+                , chatColumnNames = ["username", "person_name", "email"]
+                , chatRowsAffected = 0
+                }
+            ]
+
 testRecordReturnExcessive :: TestTree
 testRecordReturnExcessive = testCase "Return record from SELECT (extra values ignored)" $ chatTest chatScript $ \conn -> do
     actual <- [yesh|
@@ -136,7 +186,7 @@ testRecordReturnExcessive = testCase "Return record from SELECT (extra values ig
             [ ChatStep
                 { chatQuery = sameThrough trim "SELECT id, username FROM users WHERE username = ? LIMIT 1"
                 , chatParams = [exactly (toSql "billy")]
-                , chatResultSet = [[toSql (1 :: Int), toSql "billy", toSql "boy"]]
+                , chatResultSet = [[toSql (1 :: Int), toSql "billy", toSql "willie"]]
                 , chatColumnNames = ["username"]
                 , chatRowsAffected = 0
                 }

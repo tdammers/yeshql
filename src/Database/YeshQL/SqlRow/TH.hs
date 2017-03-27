@@ -29,7 +29,7 @@ makeSqlRow entityName = do
                 $(listE $ map (toSqlRowField 'entity) fieldNames)
 
         instance FromSqlRow $(conT typeName) where
-            parseSqlRow = \case
+            parseSqlRow = Parser $ \case
                 $(foldr
                     (\x xs -> infixP x '(:) xs)
                     (varP $ mkName "remaining")

@@ -1,8 +1,8 @@
 name: yeshql
-version: 2.2.0.0
+version: 3.0.0.0
 synopsis: YesQL-style SQL database abstraction
-description: Use quasi-quotations to write SQL in SQL, while at the same time
-             adding type annotations to turn them into well-typed Haskell
+description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
+             adding type annotations to turn SQL into well-typed Haskell
              functions.
 license: MIT
 license-file: LICENSE

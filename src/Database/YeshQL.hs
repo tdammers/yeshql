@@ -5,7 +5,7 @@
 {-|
 Module: Database.YeshQL
 Description: Turn SQL queries into type-safe functions.
-Copyright: (c) 2015 Tobias Dammers
+Copyright: (c) 2015-2017 Tobias Dammers
 Maintainer: Tobias Dammers <tdammers@gmail.com>
 Stability: experimental
 License: MIT
@@ -242,9 +242,9 @@ docGetUser = \"Gets one user by the \\\"id\\\" column.\"
 module Database.YeshQL
 (
 -- * Quasi-quoters that take strings
-  yesh, yesh1
+  Yesh (..)
 -- * Quasi-quoters that take filenames
-, yeshFile, yesh1File
+, YeshFile (..)
 -- * Low-level generators in the 'Q' monad
 , mkQueryDecs
 , mkQueryExp
@@ -283,18 +283,17 @@ nthIdent i
     | otherwise = let (j, k) = divMod i 26
                     in nthIdent j ++ nthIdent k
 
+-- | This typeclass is needed to allow 'yesh' and 'yesh1' to be used
+-- interchangeably as quasi-quoters and TH functions.  Because the intended
+-- instances are @String -> Q [Dec]@ and @QuasiQuoter@, it is unfortunately not
+-- possible to give the methods more obvious signatures like @String -> a@.
 class Yesh a where
-    -- | Generate a top-level declaration or an expression for a single SQL query.
-    -- If used at the top level (i.e., generating a declaration), the query
-    -- definition must specify a query name.
-    yesh1 :: a
-
-    -- | Generate top-level declarations or expressions for several SQL queries.
-    -- If used at the top level (i.e., generating declarations), all queries in the
-    -- definitions must be named, and 'yesh' will generate a separate set of
-    -- functions for each.
-    -- If used in an expression context, the current behavior is somewhat
-    -- undesirable, namely sequencing the queries using '>>'.
+    -- | Generate top-level declarations or expressions for several SQL
+    -- queries.  If used at the top level (i.e., generating declarations), all
+    -- queries in the definitions must be named, and 'yesh' will generate a
+    -- separate set of functions for each.  If used in an expression context,
+    -- the current behavior is somewhat undesirable, namely sequencing the
+    -- queries using '>>'.
     --
     -- Future versions will most likely change this to create a tuple of query
     -- expressions instead, such that you can write something like:
@@ -316,34 +315,44 @@ class Yesh a where
     --      DELETE FROM users WHERE id = :userID LIMIT 1;
     --  |]
     -- @
+
     yesh :: a
+    -- | Generate a top-level declaration or an expression for a single SQL
+    -- query.  If used at the top level (i.e., generating a declaration), the
+    -- query definition must specify a query name.
+    yesh1 :: a
 
+-- | This typeclass is needed to allow 'yeshFile' and 'yesh1File' to be used
+-- interchangeably as quasi-quoters and TH functions.
+-- Because the intended instances are @FilePath -> Q [Dec]@ and @QuasiQuoter@,
+-- it is unfortunately not possible to give the methods more obvious signatures
+-- like @FilePath -> a@.
 class YeshFile a where
-    -- | Generate one query definition or expression from an external file.
-    -- In a declaration context, the query name will be derived from the filename
-    -- unless the query contains an explicit name. Query name derivation works as
-    -- follows:
-    --
-    -- - Take only the basename (stripping off the directories and extension)
-    -- - Remove all non-alphabetic characters from the beginning of the name
-    -- - Remove all non-alphanumeric characters from the name
-    -- - Lower-case the first character.
-    --
-    -- Note that since there is always a filename to derive the query name from,
-    -- explicitly defining a query name is only necessary when you want it to
-    -- differ from the filename; however, making it explicit anyway is probably a
-    -- good idea.
-    yesh1File :: a
-
-    -- | Generate multiple query definitions or expressions from an external file.
-    -- Query name derivation works exactly like for 'yesh1File', except that an
-    -- underscore and a 0-based query index are appended to disambiguate queries
-    -- from the same file.
+    -- | Generate multiple query definitions or expressions from an external
+    -- file.  Query name derivation works exactly like for 'yesh1File', except
+    -- that an underscore and a 0-based query index are appended to
+    -- disambiguate queries from the same file.
     --
     -- In an expression context, the same caveats apply as for 'yesh', i.e., to
     -- generate expressions, you will almost certainly want 'yesh1File', not
     -- 'yeshFile'.
     yeshFile :: a
+
+    -- | Generate one query definition or expression from an external file.  In
+    -- a declaration context, the query name will be derived from the filename
+    -- unless the query contains an explicit name. Query name derivation works
+    -- as follows:
+    --
+    -- 1. Take only the basename (stripping off the directories and extension)
+    -- 2. Remove all non-alphabetic characters from the beginning of the name
+    -- 3. Remove all non-alphanumeric characters from the name
+    -- 4. Lower-case the first character.
+    --
+    -- Note that since there is always a filename to derive the query name
+    -- from, explicitly defining a query name is only necessary when you want
+    -- it to differ from the filename; however, making it explicit anyway is
+    -- probably a good idea.
+    yesh1File :: a
 
 instance Yesh (String -> Q [Dec]) where
     yesh1 = withParsedQuery mkQueryDecs

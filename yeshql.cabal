@@ -12,6 +12,7 @@ copyright: 2015-2016 Tobias Dammers
 category: Database
 build-type: Simple
 extra-source-files: README.md
+                  , tests/fixtures/*.sql
 cabal-version: >=1.10
 
 library

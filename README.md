@@ -42,7 +42,7 @@ Please refer to the Haddock documentation for further usage details.
 
 ## Bugs
 
-Probably. The project is hosted at https://bitbucket.org/tdammers/yeshql, feel
+Probably. The project is hosted at https://github.com/tdammers/yeshql, feel
 free to comment there or send a message to tdammers@gmail.com if you find any.
 
 ## Something about the name

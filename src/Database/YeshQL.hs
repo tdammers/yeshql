@@ -40,7 +40,7 @@ given in the query definition. Example:
 ...will create a top-level function of type:
 
 @
-    insertUser :: IConnection conn => conn -> String -> IO (Maybe Integer)
+    insertUser :: IConnection conn => String -> conn -> IO (Maybe Integer)
 @
 
 Using plain TH, it can also be written as:
@@ -143,8 +143,8 @@ example, the last query definition:
 ...will produce the function:
 
 @
-getUserEx :: IConnection conn => conn -> Integer -> String -> IO [(Integer, String)]
-getUserEx conn id filename =
+getUserEx :: IConnection conn => Integer -> String -> conn -> IO [(Integer, String)]
+getUserEx id filename conn =
     -- ... generated implementation left out
 @
 

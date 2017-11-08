@@ -24,7 +24,7 @@ import Data.Maybe (catMaybes, fromMaybe)
 data ParsedType = PlainType String
                 | MaybeType String
                 | AutoType
-    deriving Show
+    deriving (Show, Eq)
 
 data OneOrMany = One | Many
     deriving (Show, Eq, Enum, Ord)
@@ -32,7 +32,7 @@ data OneOrMany = One | Many
 data ParsedReturnType = ReturnRowCount ParsedType
                       | ReturnTuple OneOrMany [ParsedType]
                       | ReturnRecord OneOrMany ParsedType
-                      deriving (Show)
+                      deriving (Show, Eq)
 
 data ExtractedParam =
     ExtractedParam
@@ -40,7 +40,7 @@ data ExtractedParam =
         , paramProjections :: [String]
         , paramType :: ParsedType
         }
-        deriving (Show)
+        deriving (Show, Eq)
 
 data ParsedQuery =
     ParsedQuery
@@ -53,7 +53,7 @@ data ParsedQuery =
         , pqDocComment :: String
         , pqDDL :: Bool
         }
-        deriving (Show)
+        deriving (Show, Eq)
 
 pqTypeFor :: ParsedQuery -> String -> Maybe ParsedType
 pqTypeFor q pname = Map.lookup pname (pqParamTypes q)
@@ -297,7 +297,7 @@ commentP :: Parsec String () ParsedItem
 commentP = do
     try (whitespaceP >> string "--")
     whitespaceP
-    ParsedComment <$> manyTill (noneOf " \t\n;") newlineP
+    ParsedComment <$> manyTill anyChar newlineP
 
 paramP :: Parsec String () ParsedItem
 paramP = do

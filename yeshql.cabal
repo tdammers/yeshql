@@ -4,6 +4,8 @@ synopsis: YesQL-style SQL database abstraction
 description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
              adding type annotations to turn SQL into well-typed Haskell
              functions.
+homepage: https://github.com/tdammers/yeshql
+bug-reports: https://github.com/tdammers/yeshql/issues
 license: MIT
 license-file: LICENSE
 author: Tobias Dammers
@@ -14,6 +16,10 @@ build-type: Simple
 extra-source-files: README.md
                   , tests/fixtures/*.sql
 cabal-version: >=1.10
+
+source-repository head
+  type: git
+  location: https://github.com/tdammers/yeshql.git
 
 library
     exposed-modules: Database.YeshQL

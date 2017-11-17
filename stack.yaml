@@ -6,11 +6,12 @@ resolver: lts-9.3
 
 # Local packages, usually specified by relative directory name
 packages:
-- '.'
+- './core'
+- './hdbc'
+
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
     - HDBC-2.4.0.1
-    # - syb-with-class-0.6.1.7
 
 # Override default flag values for local packages and extra-deps
 flags: {}

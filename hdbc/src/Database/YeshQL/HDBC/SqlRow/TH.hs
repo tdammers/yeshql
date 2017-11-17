@@ -4,12 +4,12 @@
 {-#LANGUAGE QuasiQuotes #-}
 {-#LANGUAGE LambdaCase #-}
 {-#LANGUAGE CPP #-}
-module Database.YeshQL.SqlRow.TH
+module Database.YeshQL.HDBC.SqlRow.TH
 ( makeSqlRow
 )
 where
 
-import Database.YeshQL.SqlRow.Class
+import Database.YeshQL.HDBC.SqlRow.Class
 import Database.HDBC (fromSql, toSql)
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote

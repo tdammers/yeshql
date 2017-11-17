@@ -6,7 +6,7 @@
 {-#LANGUAGE TemplateHaskell #-}
 {-#LANGUAGE MultiParamTypeClasses #-}
 {-#LANGUAGE FlexibleContexts #-}
-module Database.YeshQL.SqlRow.Class
+module Database.YeshQL.HDBC.SqlRow.Class
 where
 
 import Database.HDBC

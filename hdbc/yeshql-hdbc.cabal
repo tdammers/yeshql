@@ -1,6 +1,6 @@
-name: yeshql
-version: 3.0.1.3
-synopsis: YesQL-style SQL database abstraction
+name: yeshql-hdbc
+version: 4.0.0.0
+synopsis: YesQL-style SQL database abstraction (HDBC backend)
 description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
              adding type annotations to turn SQL into well-typed Haskell
              functions.
@@ -10,11 +10,10 @@ license: MIT
 license-file: LICENSE
 author: Tobias Dammers
 maintainer: tdammers@gmail.com
-copyright: 2015-2016 Tobias Dammers
+copyright: 2015-2017 Tobias Dammers and contributors
 category: Database
 build-type: Simple
-extra-source-files: README.md
-                  , tests/fixtures/*.sql
+extra-source-files: tests/fixtures/*.sql
 cabal-version: >=1.10
 
 source-repository head
@@ -22,12 +21,12 @@ source-repository head
   location: https://github.com/tdammers/yeshql.git
 
 library
-    exposed-modules: Database.YeshQL
-                   , Database.YeshQL.SqlRow.Class
-                   , Database.YeshQL.SqlRow.TH
-                   , Database.YeshQL.Parser
+    exposed-modules: Database.YeshQL.HDBC
+                   , Database.YeshQL.HDBC.SqlRow.Class
+                   , Database.YeshQL.HDBC.SqlRow.TH
     -- other-extensions:
     build-depends: base >=4.6 && <5.0
+                 , yeshql-core >= 4.0 && <5.0
                  , HDBC >= 2.4 && <3.0
                  , containers >= 0.5 && < 1.0
                  , filepath
@@ -39,7 +38,7 @@ library
 test-suite tests
     type: exitcode-stdio-1.0
     build-depends: base >=4.6 && <5.0
-                 , yeshql
+                 , yeshql-hdbc
                  , containers
                  , stm
                  , tasty
@@ -48,7 +47,6 @@ test-suite tests
                  , HDBC
     hs-source-dirs: tests
     main-is: tests.hs
-    other-modules: Database.YeshQL.SimulationTests
-                 , Database.YeshQL.ParserTests
+    other-modules: Database.YeshQL.HDBC.SimulationTests
                  , Database.HDBC.Mock
     default-language: Haskell2010

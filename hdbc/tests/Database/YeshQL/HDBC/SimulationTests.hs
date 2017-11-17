@@ -2,7 +2,7 @@
 {-#LANGUAGE RankNTypes #-}
 {-#LANGUAGE LambdaCase #-}
 {-#LANGUAGE TemplateHaskell #-}
-module Database.YeshQL.SimulationTests
+module Database.YeshQL.HDBC.SimulationTests
 ( tests
 )
 where
@@ -11,9 +11,9 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Database.HDBC
 import Database.HDBC.Mock
-import Database.YeshQL
-import Database.YeshQL.SqlRow.Class
-import Database.YeshQL.SqlRow.TH
+import Database.YeshQL.HDBC
+import Database.YeshQL.HDBC.SqlRow.Class
+import Database.YeshQL.HDBC.SqlRow.TH
 import System.IO
 import Data.Char
 import Data.List (dropWhile, dropWhileEnd)

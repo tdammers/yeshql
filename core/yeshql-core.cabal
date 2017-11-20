@@ -24,6 +24,7 @@ library
     exposed-modules: Database.YeshQL
                    , Database.YeshQL.Parser
                    , Database.YeshQL.Util
+                   , Database.YeshQL.Backend
     -- other-extensions:
     build-depends: base >=4.6 && <5.0
                  , containers >= 0.5 && < 1.0

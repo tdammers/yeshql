@@ -2,6 +2,9 @@
 {-#LANGUAGE CPP #-}
 {-#LANGUAGE RankNTypes #-}
 {-#LANGUAGE FlexibleInstances #-}
+{-|
+Backend abstractions for YeshQL.
+-}
 module Database.YeshQL.Backend
 where
 
@@ -14,12 +17,19 @@ import Database.YeshQL.Util
 import Database.YeshQL.Parser
 import Data.List
 
+-- | A backend provides just the information required to build query functions
+-- from a parsed query.
 data YeshBackend =
   YeshBackend
-    { ybNames :: ParsedQuery -> ([Name], [PatQ], String, TypeQ)
-    , ybMkQueryBody :: ParsedQuery -> Q Exp
+    { ybNames :: ParsedQuery
+              -> ([Name], [PatQ], String, TypeQ)
+                 -- ^ Argument names, argument patterns, query function name, query function type
+    , ybMkQueryBody :: ParsedQuery
+                    -> Q Exp
     }
 
+-- | A YeshQL implementation. From this, we can build both TH splices and
+-- quasiquoters.
 data YeshImpl =
   YeshImpl
     { yiDecs :: Q [Dec]
@@ -42,6 +52,8 @@ foldYeshImpls xs =
           mapM yiExp xs
     }
 
+-- | We want to be able to call the 'yesh' family of functions in both QQ and
+-- TH contexts, so unfortunately we need some typeclass polymorphism.
 class Yesh a where
   yeshWith :: YeshBackend -> a
   yesh1With :: YeshBackend -> a
@@ -114,6 +126,9 @@ instance YeshFile QuasiQuoter where
       , quotePat = error "YeshQL does not generate patterns"
       }
 
+-- | This is where much of the magic happens: this function asks the backend
+-- for some building blocks, and assembles a 'YeshImpl' of the provided query
+-- or queries.
 yeshAllWith :: YeshBackend -> Either ParsedQuery [ParsedQuery] -> YeshImpl
 yeshAllWith backend (Left query) =
   let (argNames, patterns, funName, queryType) = ybNames backend query

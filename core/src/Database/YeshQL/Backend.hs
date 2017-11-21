@@ -153,3 +153,17 @@ yeshAllWith backend (Left query) =
       }
 yeshAllWith backend (Right queries) =
   foldYeshImpls $ map (yeshAllWith backend . Left) queries
+
+describeBackend :: YeshBackend
+describeBackend =
+  YeshBackend
+    { ybNames = \q -> ([], [], queryIdentifier "describe" (pqQueryName q), [t|String|])
+    , ybMkQueryBody = litE . stringL . pqQueryString
+    }
+
+docBackend :: YeshBackend
+docBackend =
+  YeshBackend
+    { ybNames = \q -> ([], [], queryIdentifier "doc" (pqQueryName q), [t|String|])
+    , ybMkQueryBody = litE . stringL . pqDocComment
+    }

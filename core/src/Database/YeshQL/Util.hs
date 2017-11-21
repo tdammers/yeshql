@@ -11,7 +11,7 @@ import Language.Haskell.TH.Quote
 #if MIN_VERSION_template_haskell(2,7,0)
 import Language.Haskell.TH.Syntax (Quasi(qAddDependentFile))
 #endif
-import Data.Char (toLower, toUpper, isAlpha, isAlphaNum)
+import Data.Char (toLower, toUpper, isAlpha, isAlphaNum, chr, ord)
 import System.FilePath (takeBaseName)
 
 queryName :: String -> String -> Name
@@ -35,6 +35,16 @@ makeValidIdentifier :: String -> String
 makeValidIdentifier =
     filter isAlphaNum .
     dropWhile (not . isAlpha)
+
+headMay :: [a] -> Maybe a
+headMay [] = Nothing
+headMay (x:_) = Just x
+
+nthIdent :: Int -> String
+nthIdent i
+    | i < 26 = [chr (ord 'a' + i)]
+    | otherwise = let (j, k) = divMod i 26
+                    in nthIdent j ++ nthIdent k
 
 nameQuery :: String -> ParsedQuery -> ParsedQuery
 nameQuery qname pq

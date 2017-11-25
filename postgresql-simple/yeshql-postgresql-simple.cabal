@@ -36,13 +36,14 @@ library
 test-suite tests
     type: exitcode-stdio-1.0
     build-depends: base >=4.6 && <5.0
-                 , yeshql-postgresql-simple
+                 , bytestring
                  , containers
+                 , postgresql-simple
                  , stm
                  , tasty
                  , tasty-hunit
                  , tasty-quickcheck
-                 , postgresql-simple
+                 , yeshql-postgresql-simple
     ghc-options: -ddump-splices
     hs-source-dirs: tests
     main-is: tests.hs

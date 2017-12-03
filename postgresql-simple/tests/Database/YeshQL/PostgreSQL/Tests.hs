@@ -50,6 +50,8 @@ tests conn =
     , testRecordReturn
     , testRecordReturnComplex
     , testRecordReturnExcessive
+    , testTupleReturnMany
+    , testRecordReturnMany
     , testRecordParams
     , testUpdateReturnRowCount
     , testMultiQuery
@@ -118,6 +120,22 @@ testRecordReturnExcessive conn = testCase "Return record from SELECT (extra valu
     let expected :: Maybe User
         expected = Just $ User 1 "billy"
     assertEqual "" expected actual
+
+testTupleReturnMany :: Connection -> TestTree
+testTupleReturnMany conn = testCase "Return a list of single-element tuples" $ do
+  actual <- [yesh|
+    -- name:getUsers :: [(String)]
+    select username from Users|] conn
+  let expected = ["billy", "billy"]
+  assertEqual "" expected actual
+
+testRecordReturnMany :: Connection -> TestTree
+testRecordReturnMany conn = testCase "Return a list of records from SELECT" $ do
+  actual <- [yesh|
+    -- name:getUsers :: [User]
+    select id, username from Users|] conn
+  let expected = [User 1 "billy", User 2 "billy"]
+  assertEqual "" expected actual
 
 testRecordParams :: Connection -> TestTree
 testRecordParams conn = testCase "Pass records as params" $ do

@@ -44,7 +44,6 @@ test-suite tests
                  , tasty-hunit
                  , tasty-quickcheck
                  , yeshql-postgresql-simple
-    ghc-options: -ddump-splices
     hs-source-dirs: tests
     main-is: tests.hs
     other-modules: Database.YeshQL.PostgreSQL.Tests

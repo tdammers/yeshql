@@ -153,14 +153,14 @@ mkQueryBody query = do
                             [| \qstr params conn -> fmap fromIntegral (PostgreSQL.execute conn (fromString qstr) params) |]
                         ReturnTuple Many tys ->
                             case tys of
-                             [t] -> [| \qstr params conn -> _ $ PostgreSQL.query conn (fromString qstr) params |]
+                             [t] -> [| \qstr params conn -> map fromOnly <$> PostgreSQL.query conn (fromString qstr) params |]
                              _ -> [| \qstr params conn -> PostgreSQL.query conn (fromString qstr) params |]
                         ReturnTuple One tys ->
                             case tys of
                               [t] -> [| \qstr params conn -> fmap (fmap fromOnly . headMay) (PostgreSQL.query conn (fromString qstr) params) |]
                               _ -> [| \qstr params conn -> fmap headMay (PostgreSQL.query conn (fromString qstr) params) |]
                         ReturnRecord Many _ ->
-                            [| \qstr params conn -> _ |]
+                            [| \qstr params conn -> PostgreSQL.query conn (fromString qstr) params |]
                         ReturnRecord One _ ->
                             [| \qstr params conn -> fmap headMay (PostgreSQL.query conn (fromString qstr) params) |]
         rawQueryFunc = [| \qstr conn -> () <$ execute_ conn (fromString qstr) |]

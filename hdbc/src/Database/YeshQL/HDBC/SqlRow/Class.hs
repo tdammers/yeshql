@@ -6,14 +6,20 @@
 {-#LANGUAGE TemplateHaskell #-}
 {-#LANGUAGE MultiParamTypeClasses #-}
 {-#LANGUAGE FlexibleContexts #-}
+{-#LANGUAGE FlexibleInstances #-}
 module Database.YeshQL.HDBC.SqlRow.Class
 where
 
 import Database.HDBC
+import Database.HDBC.SqlValue
 import Data.Convertible (Convertible, prettyConvertError)
+import Control.Applicative
 
 class ToSqlRow a where
     toSqlRow :: a -> [SqlValue]
+
+instance ToSqlRow [SqlValue] where
+    toSqlRow = id
 
 newtype Parser a =
     Parser { runParser :: [SqlValue] -> Either String (a, [SqlValue]) }
@@ -22,6 +28,28 @@ newtype Parser a =
 instance Applicative Parser where
     pure x = Parser $ \values -> Right (x, values)
     (<*>) = parserApply
+
+instance Alternative Parser where
+    empty = parserFail ""
+    (<|>) = parserAlt
+
+parserAlt :: Parser a -> Parser a -> Parser a
+parserAlt (Parser rpa) (Parser rpb) =
+    Parser $ \values ->
+        case rpa values of
+          Right x ->
+            Right x
+          Left err ->
+            case rpb values of
+              Right x ->
+                Right x
+              Left err' ->
+                Left (mergeErrors err err')
+
+mergeErrors :: String -> String -> String
+mergeErrors "" x = x
+mergeErrors x "" = x
+mergeErrors x y = x ++ "\n" ++ y
 
 parserApply :: Parser (a -> b) -> Parser a -> Parser b
 parserApply (Parser rpf) (Parser rpa) =
@@ -36,7 +64,11 @@ parserApply (Parser rpf) (Parser rpa) =
 
 instance Monad Parser where
     (>>=) = parserBind
-    fail err = Parser . const . Left $ err
+    fail = parserFail
+
+parserFail :: String -> Parser a
+parserFail err =
+  Parser . const . Left $ err
 
 parserBind :: Parser a -> (a -> Parser b) -> Parser b
 parserBind p f =
@@ -62,3 +94,8 @@ parseField = Parser $ \case
     (x:xs) -> case safeFromSql x of
         Left cerr -> Left . prettyConvertError $ cerr
         Right a -> Right (a, xs)
+
+eof :: Parser ()
+eof = Parser $ \case
+  [] -> Right ((), [])
+  _ -> Left "Expected end of input"

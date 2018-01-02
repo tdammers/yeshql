@@ -99,3 +99,6 @@ eof :: Parser ()
 eof = Parser $ \case
   [] -> Right ((), [])
   _ -> Left "Expected end of input"
+
+instance FromSqlRow [SqlValue] where
+  parseSqlRow = many parseField

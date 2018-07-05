@@ -1,5 +1,5 @@
 name: yeshql-core
-version: 4.0.0.0
+version: 4.1.0.0
 synopsis: YesQL-style SQL database abstraction (core)
 description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
              adding type annotations to turn SQL into well-typed Haskell
@@ -21,7 +21,7 @@ source-repository head
   location: https://github.com/tdammers/yeshql.git
 
 library
-    exposed-modules: Database.YeshQL
+    exposed-modules: Database.YeshQL.Core
                    , Database.YeshQL.Parser
                    , Database.YeshQL.Util
                    , Database.YeshQL.Backend

@@ -1,0 +1,30 @@
+name: yeshql
+version: 4.1.0.0
+synopsis: YesQL-style SQL database abstraction (legacy compatibility wrapper)
+description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
+             adding type annotations to turn SQL into well-typed Haskell
+             functions.
+homepage: https://github.com/tdammers/yeshql
+bug-reports: https://github.com/tdammers/yeshql/issues
+license: MIT
+license-file: LICENSE
+author: Tobias Dammers
+maintainer: tdammers@gmail.com
+copyright: 2015-2017 Tobias Dammers and contributors
+category: Database
+build-type: Simple
+extra-source-files: README.md
+cabal-version: >=1.10
+
+source-repository head
+  type: git
+  location: https://github.com/tdammers/yeshql.git
+
+library
+    exposed-modules: Database.YeshQL
+    -- other-extensions:
+    build-depends: base >=4.6 && <5.0
+                 , yeshql-core
+                 , yeshql-hdbc
+    hs-source-dirs: src
+    default-language: Haskell2010

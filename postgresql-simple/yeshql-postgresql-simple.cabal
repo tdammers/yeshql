@@ -1,5 +1,5 @@
 name: yeshql-postgresql-simple
-version: 4.0.0.0
+version: 4.1.0.0
 synopsis: YesQL-style SQL database abstraction (postgresql-simple backend)
 description: Use quasi-quotations or TemplateHaskell to write SQL in SQL, while
              adding type annotations to turn SQL into well-typed Haskell

@@ -15,12 +15,6 @@ to provide full SQL abstraction with added type safety; instead, it gives you
 some simple tools to write the SQL queries yourself and bind them to (typed)
 functions.
 
-= Note
-
-The descriptions provided below outline general usage, and assume that one of
-the backends (e.g. @yeshql-hdbc@) is being used, and its top-level module (e.g.
-@Database.YeshQL.HDBC@) has been imported.
-
 = Usage
 
 The main workhorses are 'yesh1' (to define one query) and 'yesh' (to define
@@ -247,12 +241,20 @@ docGetUser = \"Gets one user by the \\\"id\\\" column.\"
  -}
 module Database.YeshQL
 (
+-- * Quasi-quoters that take strings
+  Yesh (..)
+-- * Quasi-quoters that take filenames
+, YeshFile (..)
 -- * Query parsers
-  parseQuery
+, parseQuery
 , parseQueries
 -- * AST
 , ParsedQuery (..)
 )
 where
 
+import Database.YeshQL.Core
+import Database.YeshQL.Backend
 import Database.YeshQL.Parser
+import Database.YeshQL.HDBC
+import Database.YeshQL.HDBC.SqlRow.Class

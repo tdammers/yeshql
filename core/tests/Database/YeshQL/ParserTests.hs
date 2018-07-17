@@ -9,7 +9,7 @@ where
 
 import Test.Tasty
 import Test.Tasty.HUnit
-import Database.YeshQL
+import Database.YeshQL.Core
 import Database.YeshQL.Parser
 import qualified Data.Map as Map
 

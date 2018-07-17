@@ -50,6 +50,7 @@ import Control.Concurrent.STM.TChan
     , tryReadTChan
     , newTChanIO
     )
+import Data.Semigroup
 
 data MockConnection =
     MockConnection
@@ -161,6 +162,8 @@ instance Monoid (Constraint a) where
     mempty = anything
     mappend (Constraint a) (Constraint b) =
         Constraint (\x -> a x && b x)
+
+instance Semigroup (Constraint a) where
 
 (<||>) :: Constraint a -> Constraint a -> Constraint a
 a <||> b = Constraint $ \x -> check a x || check b x

@@ -36,6 +36,7 @@ import Database.HDBC (fromSql, toSql, run, runRaw, ConnWrapper, IConnection, qui
 import qualified Text.Parsec as P
 import Data.Char (chr, ord, toUpper, toLower)
 import Control.Applicative ( (<$>), (<*>) )
+import Control.Monad (void)
 import System.FilePath (takeBaseName)
 import Data.Char (isAlpha, isAlphaNum)
 
@@ -126,6 +127,8 @@ mkQueryBody query = do
                             [| \qstr params conn -> $convert <$> run conn qstr params |]
                         ReturnTuple Many _ ->
                             [| \qstr params conn -> $convert <$> quickQuery' conn qstr params |]
+                        ReturnTuple One [] ->
+                            [| \qstr params conn -> void $ $convert <$> quickQuery' conn qstr params |]
                         ReturnTuple One _ ->
                             [| \qstr params conn -> fmap headMay $ $convert <$> quickQuery' conn qstr params |]
                         ReturnRecord Many _ ->

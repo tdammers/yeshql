@@ -67,6 +67,12 @@ testSimpleSelect conn = testCase "Simple SELECT" $ do
         SELECT username FROM users|] conn
     return ()
 
+testEmptyReturn :: Connection -> TestTree
+testEmptyReturn conn = testCase "Simple SELECT (empty return)" $ do
+    [yesh|
+        -- name:getUserByName :: ()
+        SELECT username FROM users WHERE 0|] conn
+
 testSimpleSelectStr :: Connection -> TestTree
 testSimpleSelectStr conn = testCase "Simple SELECT (expr by string)" $ do
     results <- $(yesh $ unlines

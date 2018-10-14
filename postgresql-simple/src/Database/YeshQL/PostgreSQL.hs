@@ -36,6 +36,7 @@ import Data.Maybe (catMaybes, fromMaybe)
 import qualified Text.Parsec as P
 import Data.Char (chr, ord, toUpper, toLower)
 import Control.Applicative ( (<$>), (<*>) )
+import Control.Monad (void)
 import System.FilePath (takeBaseName)
 import Data.Char (isAlpha, isAlphaNum)
 
@@ -157,6 +158,7 @@ mkQueryBody query = do
                              _ -> [| \qstr params conn -> PostgreSQL.query conn (fromString qstr) params |]
                         ReturnTuple One tys ->
                             case tys of
+                              [] -> [| \qstr params conn -> void (PostgreSQL.query conn (fromString qstr) params :: IO [[()]]) |]
                               [t] -> [| \qstr params conn -> fmap (fmap fromOnly . headMay) (PostgreSQL.query conn (fromString qstr) params) |]
                               _ -> [| \qstr params conn -> fmap headMay (PostgreSQL.query conn (fromString qstr) params) |]
                         ReturnRecord Many _ ->

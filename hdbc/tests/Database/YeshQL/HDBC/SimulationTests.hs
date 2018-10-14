@@ -81,6 +81,22 @@ testSimpleSelect = testCase "Simple SELECT" $ chatTest chatScript $ \conn -> do
                 }
             ]
 
+testEmptyReturn :: TestTree
+testEmptyReturn = testCase "Simple SELECT (empty return)" $ chatTest chatScript $ \conn -> do
+    [yesh|
+        -- name:getUserByName :: ()
+        SELECT username FROM users WHERE 0|] conn
+    where
+        chatScript =
+            [ ChatStep
+                { chatQuery = sameThrough trim "SELECT username FROM users WHERE 0"
+                , chatParams = []
+                , chatResultSet = []
+                , chatColumnNames = ["username"]
+                , chatRowsAffected = 0
+                }
+            ]
+
 testSimpleSelectStr :: TestTree
 testSimpleSelectStr = testCase "Simple SELECT (expr by string)" $ chatTest chatScript $ \conn -> do
     results <- $(yesh $ unlines

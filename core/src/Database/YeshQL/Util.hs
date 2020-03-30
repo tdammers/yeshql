@@ -57,15 +57,15 @@ nameQueries basename queries =
     where
         queryNames = [ basename ++ "_" ++ show i | i <- [0..] ]
 
-withParsedQuery :: (MonadPerformIO m, Monad m)
+withParsedQuery :: (MonadFail m, MonadPerformIO m, Monad m)
                 => (ParsedQuery -> m a) -> String -> m a
 withParsedQuery = withParsed parseQuery
 
-withParsedQueries :: (MonadPerformIO m, Monad m)
+withParsedQueries :: (MonadFail m, MonadPerformIO m, Monad m)
                   => ([ParsedQuery] -> m a) -> String -> m a
 withParsedQueries = withParsed parseQueries
 
-withParsedQueryFile :: (MonadPerformIO m, Monad m)
+withParsedQueryFile :: (MonadFail m, MonadPerformIO m, Monad m)
                     => (ParsedQuery -> m a) -> FilePath -> m a
 withParsedQueryFile p fn =
     withParsedFile
@@ -73,7 +73,7 @@ withParsedQueryFile p fn =
         (p . nameQuery (queryIdentifier "" fn))
         fn
 
-withParsedQueriesFile :: (MonadPerformIO m, Monad m)
+withParsedQueriesFile :: (MonadFail m, MonadPerformIO m, Monad m)
                       => ([ParsedQuery] -> m a) -> FilePath -> m a
 withParsedQueriesFile p fn =
     withParsedFile
@@ -81,7 +81,7 @@ withParsedQueriesFile p fn =
         (p . nameQueries (queryIdentifier "" fn))
         fn
 
-withParsed :: (Monad m, Show e)
+withParsed :: (MonadFail m, Monad m, Show e)
            => (s -> Either e a) -> (a -> m b) -> s -> m b
 withParsed p a src = do
     let parseResult = p src
@@ -113,9 +113,8 @@ instance MonadPerformIO Q where
     addDependentFile = const $ return ()
 #endif
 
-withParsedFile :: (MonadPerformIO m, Monad m, Show e) => (String -> Either e a) -> (a -> m b) -> FilePath -> m b
+withParsedFile :: (MonadFail m, MonadPerformIO m, Monad m, Show e) => (String -> Either e a) -> (a -> m b) -> FilePath -> m b
 withParsedFile p a filename =
     addDependentFile filename >>
     performIO (readFile filename) >>=
         withParsed p a
-

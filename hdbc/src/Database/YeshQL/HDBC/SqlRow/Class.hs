@@ -64,6 +64,8 @@ parserApply (Parser rpf) (Parser rpa) =
 
 instance Monad Parser where
     (>>=) = parserBind
+
+instance MonadFail Parser where
     fail = parserFail
 
 parserFail :: String -> Parser a
@@ -80,7 +82,7 @@ parserBind p f =
 class FromSqlRow a where
     parseSqlRow :: Parser a
 
-fromSqlRow :: (FromSqlRow a, Monad m) => [SqlValue] -> m a
+fromSqlRow :: (FromSqlRow a, Monad m, MonadFail m) => [SqlValue] -> m a
 fromSqlRow sqlValues =
     case runParser parseSqlRow sqlValues of
         Left err -> fail err

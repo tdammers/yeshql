@@ -28,6 +28,7 @@ library
     -- other-extensions:
     build-depends: base >=4.6 && <5.0
                  , containers >= 0.5 && < 1.0
+                 , fail >=4.9.0.0 && <4.10
                  , filepath
                  , parsec >= 3.0 && <4.0
                  , template-haskell

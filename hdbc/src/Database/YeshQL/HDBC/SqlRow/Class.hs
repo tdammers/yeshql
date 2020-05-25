@@ -14,6 +14,8 @@ import Database.HDBC
 import Database.HDBC.SqlValue
 import Data.Convertible (Convertible, prettyConvertError)
 import Control.Applicative
+import Control.Monad.Fail
+import Prelude hiding (fail)
 
 class ToSqlRow a where
     toSqlRow :: a -> [SqlValue]

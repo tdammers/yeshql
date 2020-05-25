@@ -5,6 +5,7 @@
 module Database.YeshQL.Util
 where
 
+import Prelude hiding (fail)
 import Database.YeshQL.Parser
 import Language.Haskell.TH
 import Language.Haskell.TH.Quote
@@ -13,6 +14,7 @@ import Language.Haskell.TH.Syntax (Quasi(qAddDependentFile))
 #endif
 import Data.Char (toLower, toUpper, isAlpha, isAlphaNum, chr, ord)
 import System.FilePath (takeBaseName)
+import Control.Monad.Fail
 
 queryName :: String -> String -> Name
 queryName prefix = mkName . queryIdentifier prefix
